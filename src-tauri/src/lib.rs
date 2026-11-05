@@ -2,6 +2,7 @@
 #![allow(dead_code, unused_imports)] // Provider modules are ported whole; not every API is surfaced in the UI yet.
 
 mod catalog;
+mod covers;
 mod db;
 mod discovery;
 mod deemix;
@@ -92,6 +93,13 @@ async fn catalog_album_enrichment(
 #[specta::specta]
 async fn catalog_resolve_album(artist: String, title: String) -> Result<Option<catalog::AlbumCard>, String> {
     blocking(move || catalog::resolve_album(&artist, &title)).await
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn catalog_cover(rgid: String, artist: String, title: String) -> Result<Option<String>, String> {
+    blocking(move || covers::lookup(&rgid, &artist, &title)).await
 }
 
 // --- For you: library-aware discovery -------------------------------------------

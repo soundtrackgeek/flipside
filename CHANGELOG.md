@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-11-05
+
+### Added
+- Many more album covers on the For you page. When the Cover Art Archive has no picture (or times out), Flipside retries once and then looks the album up on **Deezer** and then **Discogs**. Answers, including "nothing found", are cached in the local database so each album is looked up once. In a 30-album sample the Cover Art Archive alone covered 19, Deezer and Discogs each found about half, and in the app 55 of the first 60 tiles now show art.
+
 ## [0.5.1] - 2026-11-05
 
 ### Fixed

@@ -16,7 +16,7 @@ use super::{
     keys_status, keys_save, keys_delete, get_deemix_credential_status, save_deemix_arl,
     delete_deemix_arl, test_deemix_connection, search_deemix_albums, download_deemix_album,
     preflight_deemix_album_download, get_app_update_status, check_app_update,
-    install_app_update, catalog_resolve_album, discovery_query, discovery_status, discovery_refresh,
+    install_app_update, catalog_resolve_album, catalog_cover, discovery_query, discovery_status, discovery_refresh,
     library_status, library_reload, soulseek, usenet,
 };
 
@@ -36,6 +36,7 @@ fn builder() -> Builder<Wry> {
         catalog_artist_enrichment,
         catalog_album_enrichment,
         catalog_resolve_album,
+        catalog_cover,
         discovery_query,
         discovery_status,
         discovery_refresh,

@@ -409,7 +409,7 @@ pub fn query(q: &DiscoveryQuery) -> DiscoveryPage {
 // Status and progress
 // ---------------------------------------------------------------------------
 
-fn flip() -> Result<Connection> {
+pub(crate) fn flip() -> Result<Connection> {
     let app = APP.get().context("not initialised")?;
     Ok(crate::db::open(app)?.0)
 }

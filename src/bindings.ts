@@ -25,6 +25,7 @@ export const commands = {
 	trackCount: number | null,
 	explicit: boolean,
 } | null>("catalog_resolve_album", { artist, title }),
+	catalogCover: (rgid: string, artist: string, title: string) => __TAURI_INVOKE<string | null>("catalog_cover", { rgid, artist, title }),
 	discoveryQuery: (query: DiscoveryQuery) => __TAURI_INVOKE<DiscoveryPage>("discovery_query", { query }),
 	discoveryStatus: () => __TAURI_INVOKE<DiscoveryStatus>("discovery_status"),
 	discoveryRefresh: () => __TAURI_INVOKE<boolean>("discovery_refresh"),
