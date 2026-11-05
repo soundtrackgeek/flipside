@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Disc3, Download, User } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Disc3, Download, User, Wand2 } from "lucide-react";
 import { commands } from "../bindings";
 import type { AlbumCard, ArtistCard } from "../bindings";
 import { limited } from "../lib/limit";
+import GetDrawer from "./GetDrawer";
 import { useApp } from "../store";
 import { formatCount, kindLabel } from "../lib/format";
 
@@ -64,6 +66,7 @@ function useOriginalYear(album: AlbumCard) {
 export function AlbumTile({ album, showYear = false }: { album: AlbumCard; showYear?: boolean }) {
   const { go } = useApp();
   const { year, ref } = useOriginalYear(album);
+  const [auto, setAuto] = useState(false);
   return (
     <div ref={ref} className="card" role="link" tabIndex={0}
       onClick={() => go({ name: "album", id: album.id })}
@@ -78,7 +81,12 @@ export function AlbumTile({ album, showYear = false }: { album: AlbumCard; showY
         >
           <Download size={18} />
         </button>
+        <button className="get auto" title="Auto-get: Deezer, then Usenet, then Soulseek" aria-label={`Auto-get ${album.title}`}
+          onClick={(e) => { e.stopPropagation(); setAuto(true); }}>
+          <Wand2 size={18} />
+        </button>
       </div>
+      {auto ? createPortal(<GetDrawer album={album} autoStart onClose={() => setAuto(false)} />, document.body) : null}
       <div className="title" title={album.title}>
         {album.title}
         {album.explicit ? <span className="badge-e">E</span> : null}

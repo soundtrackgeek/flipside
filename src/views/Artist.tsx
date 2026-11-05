@@ -13,7 +13,7 @@ const ALBUMS_PER_SIMILAR = 12;
 /** One "If you like ..." row: a similar artist and their own studio albums. */
 function SimilarRow({
   name, busyId, onOpen, onArtist,
-}: { name: string; busyId: string | null; onOpen: (a: DiscoveryAlbum) => void; onArtist: (name: string) => void }) {
+}: { name: string; busyId: string | null; onOpen: (a: DiscoveryAlbum, auto?: boolean) => void; onArtist: (name: string) => void }) {
   const [albums, setAlbums] = useState<DiscoveryAlbum[] | null>(null);
 
   useEffect(() => {
@@ -120,7 +120,7 @@ export default function Artist({ id }: { id: string }) {
           <SkeletonGrid count={6} />
         ) : albums.length > 0 ? (
           <div className="grid">
-            {albums.map((a) => <DiscTile key={a.id} album={a} showArtist={false} busy={resolving === a.id} onOpen={(x) => void open(x)} />)}
+            {albums.map((a) => <DiscTile key={a.id} album={a} showArtist={false} busy={resolving === a.id} onOpen={(x, auto) => void open(x, auto)} />)}
           </div>
         ) : detail.albums.length > 0 ? (
           <>
@@ -135,7 +135,7 @@ export default function Artist({ id }: { id: string }) {
       {similarNames.length > 0 ? (
         <Section title={`If you like ${artist.name}…`} hint="Similar artists and their albums">
           {similarNames.map((name) => (
-            <SimilarRow key={name} name={name} busyId={resolving} onOpen={(x) => void open(x)} onArtist={(n) => void openArtist(n)} />
+            <SimilarRow key={name} name={name} busyId={resolving} onOpen={(x, auto) => void open(x, auto)} onArtist={(n) => void openArtist(n)} />
           ))}
         </Section>
       ) : null}

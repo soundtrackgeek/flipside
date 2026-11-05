@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-11-05
+
+### Added
+- **Auto-get button on every album tile** (the wand, bottom-left on hover, next to the download button). One click starts Deezer → Usenet → Soulseek straight away, without opening the album first.
+
 ## [0.8.0] - 2026-11-05
 
 ### Added

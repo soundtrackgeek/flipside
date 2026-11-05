@@ -192,7 +192,7 @@ export default function ForYou() {
       ) : null}
 
       <div className="grid" style={{ marginTop: 18 }}>
-        {items.map((a) => <DiscTile key={a.id} album={a} busy={resolving === a.id} onOpen={(x) => void open(x)} onArtist={(n) => void openArtist(n)} />)}
+        {items.map((a) => <DiscTile key={a.id} album={a} busy={resolving === a.id} onOpen={(x, auto) => void open(x, auto)} onArtist={(n) => void openArtist(n)} />)}
       </div>
 
       {page && items.length < page.total ? (

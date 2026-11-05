@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Disc3, Download, Loader2 } from "lucide-react";
+import { Disc3, Download, Loader2, Wand2 } from "lucide-react";
 import { commands } from "../bindings";
 import type { AlbumCard, DiscoveryAlbum } from "../bindings";
 import { useApp } from "../store";
@@ -50,19 +50,20 @@ export function DiscCover({ album }: { album: DiscoveryAlbum }) {
 export function useAlbumOpener() {
   const { go, toast } = useApp();
   const [resolving, setResolving] = useState<string | null>(null);
-  const [drawer, setDrawer] = useState<AlbumCard | null>(null);
+  const [drawer, setDrawer] = useState<{ album: AlbumCard; auto: boolean } | null>(null);
 
-  const open = useCallback(async (album: DiscoveryAlbum) => {
+  const open = useCallback(async (album: DiscoveryAlbum, auto = false) => {
     setResolving(album.id);
     try {
       const found = await commands.catalogResolveAlbum(album.artist, album.title);
       if (found) {
-        go({ name: "album", id: found.id });
+        if (auto) setDrawer({ album: found, auto: true });
+        else go({ name: "album", id: found.id });
       } else {
-        setDrawer({
+        setDrawer({ auto, album: {
           id: "", title: album.title, artist: album.artist, artistId: null, cover: album.cover, coverLarge: album.cover,
           year: album.year, releaseDate: null, kind: "album", trackCount: null, explicit: false,
-        });
+        } });
       }
     } catch (e) {
       toast("error", errorMessage(e));
@@ -71,7 +72,7 @@ export function useAlbumOpener() {
     }
   }, [go, toast]);
 
-  const drawerNode = drawer ? <GetDrawer album={drawer} onClose={() => setDrawer(null)} /> : null;
+  const drawerNode = drawer ? <GetDrawer album={drawer.album} autoStart={drawer.auto} onClose={() => setDrawer(null)} /> : null;
   return { open, resolving, drawerNode };
 }
 
@@ -91,7 +92,7 @@ export function useArtistOpener() {
 export function DiscTile({
   album, busy, onOpen, onArtist, showArtist = true,
 }: {
-  album: DiscoveryAlbum; busy: boolean; onOpen: (a: DiscoveryAlbum) => void; onArtist?: (name: string) => void; showArtist?: boolean;
+  album: DiscoveryAlbum; busy: boolean; onOpen: (a: DiscoveryAlbum, auto?: boolean) => void; onArtist?: (name: string) => void; showArtist?: boolean;
 }) {
   return (
     <div className="card" role="link" tabIndex={0} onClick={() => onOpen(album)} onKeyDown={(e) => e.key === "Enter" && onOpen(album)}>
@@ -99,6 +100,9 @@ export function DiscTile({
         <DiscCover album={album} />
         <button className="get" title="Get this album" aria-label={`Get ${album.title}`} onClick={(e) => { e.stopPropagation(); onOpen(album); }}>
           {busy ? <Loader2 size={18} className="spin" /> : <Download size={18} />}
+        </button>
+        <button className="get auto" title="Auto-get: Deezer, then Usenet, then Soulseek" aria-label={`Auto-get ${album.title}`} onClick={(e) => { e.stopPropagation(); onOpen(album, true); }}>
+          <Wand2 size={18} />
         </button>
       </div>
       <div className="title" title={album.title}>{album.title}</div>
