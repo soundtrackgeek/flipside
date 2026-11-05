@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Download } from "lucide-react";
+import { ListChecks, Wand2 } from "lucide-react";
 import { commands } from "../bindings";
 import type { AlbumDetail, AlbumEnrichment } from "../bindings";
 import { useApp } from "../store";
-import GetDrawer from "../components/GetDrawer";
+import GetDrawer, { type Tab } from "../components/GetDrawer";
 import { Empty } from "../components/ui";
 import { errorMessage, formatCount, formatDuration, formatTotalDuration, kindLabel } from "../lib/format";
 
@@ -12,14 +12,14 @@ export default function Album({ id, openGet }: { id: string; openGet?: boolean }
   const [detail, setDetail] = useState<AlbumDetail | null>(null);
   const [extra, setExtra] = useState<AlbumEnrichment | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [drawer, setDrawer] = useState(!!openGet);
+  const [drawer, setDrawer] = useState<{ tab: Tab; autoStart: boolean } | null>(openGet ? { tab: "auto", autoStart: false } : null);
 
   useEffect(() => {
     let alive = true;
     setDetail(null);
     setExtra(null);
     setError(null);
-    setDrawer(!!openGet);
+    setDrawer(openGet ? { tab: "auto", autoStart: false } : null);
     commands
       .catalogAlbum(id)
       .then((d) => {
@@ -62,7 +62,8 @@ export default function Album({ id, openGet }: { id: string; openGet?: boolean }
               {tags.map((t) => <span className="chip accent" key={t}>{t}</span>)}
             </div>
             <div className="hero-actions">
-              <button className="btn primary" onClick={() => setDrawer(true)}><Download size={16} /> Get this album</button>
+              <button className="btn primary" onClick={() => setDrawer({ tab: "auto", autoStart: true })}><Wand2 size={16} /> Auto-get</button>
+              <button className="btn" onClick={() => setDrawer({ tab: "deemix", autoStart: false })}><ListChecks size={16} /> Choose source</button>
               {extra?.discogsUrl ? (
                 <button className="btn ghost" onClick={() => void import("@tauri-apps/plugin-opener").then((m) => m.openUrl(extra.discogsUrl!))}>Discogs</button>
               ) : null}
@@ -91,7 +92,7 @@ export default function Album({ id, openGet }: { id: string; openGet?: boolean }
         ))}
       </div>
 
-      {drawer ? <GetDrawer album={album} onClose={() => setDrawer(false)} /> : null}
+      {drawer ? <GetDrawer album={album} initialTab={drawer.tab} autoStart={drawer.autoStart} onClose={() => setDrawer(null)} /> : null}
     </>
   );
 }

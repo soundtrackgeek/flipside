@@ -2,6 +2,12 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-11-05
+
+### Added
+- **Auto-get**: a one-click way to get an album. Flipside tries Deezer first, then Usenet (best Prowlarr match, at least a confident score), then Soulseek (best complete folder, preferring free slots and FLAC), and stops at the first provider that delivers. Each step shows its status and why it was skipped or failed.
+- The album page now has "Auto-get" and "Choose source" buttons; the Get drawer opens on a new Auto tab, and the manual provider tabs are still there.
+
 ## [0.1.1] - 2026-11-05
 
 ### Fixed

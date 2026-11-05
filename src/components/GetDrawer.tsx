@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CloudDownload, Loader2, Newspaper, RefreshCw, Share2, X, Zap, CheckCircle2 } from "lucide-react";
+import { CircleDashed, CircleSlash, CloudDownload, Loader2, Newspaper, RefreshCw, Share2, Wand2, X, XCircle, Zap, CheckCircle2 } from "lucide-react";
 import { commands, events } from "../bindings";
 import type {
   AlbumCard,
@@ -13,10 +13,12 @@ import {
   errorMessage, formatAge, formatBytes, formatSpeed, remoteFolder, remoteTitle, simplifyTitle,
 } from "../lib/format";
 
-type Tab = "deemix" | "usenet" | "soulseek";
+export type Tab = "auto" | "deemix" | "usenet" | "soulseek";
 
-export default function GetDrawer({ album, onClose }: { album: AlbumCard; onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>("deemix");
+export default function GetDrawer({
+  album, onClose, initialTab = "auto", autoStart = false,
+}: { album: AlbumCard; onClose: () => void; initialTab?: Tab; autoStart?: boolean }) {
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -37,11 +39,13 @@ export default function GetDrawer({ album, onClose }: { album: AlbumCard; onClos
           <button className="icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>
         <div className="tabs">
+          <button className={`tab${tab === "auto" ? " active" : ""}`} onClick={() => setTab("auto")}><Wand2 size={15} /> Auto</button>
           <button className={`tab${tab === "deemix" ? " active" : ""}`} onClick={() => setTab("deemix")}><Zap size={15} /> Deezer</button>
           <button className={`tab${tab === "usenet" ? " active" : ""}`} onClick={() => setTab("usenet")}><Newspaper size={15} /> Usenet</button>
           <button className={`tab${tab === "soulseek" ? " active" : ""}`} onClick={() => setTab("soulseek")}><Share2 size={15} /> Soulseek</button>
         </div>
         <div className="drawer-body">
+          {tab === "auto" ? <AutoTab album={album} autoStart={autoStart} /> : null}
           {tab === "deemix" ? <DeemixTab album={album} /> : null}
           {tab === "usenet" ? <UsenetTab album={album} /> : null}
           {tab === "soulseek" ? <SoulseekTab album={album} /> : null}
@@ -172,7 +176,7 @@ function UsenetTab({ album }: { album: AlbumCard }) {
 
 const AUDIO = new Set(["flac", "mp3", "m4a", "aac", "ogg", "opus", "wav", "aiff", "ape", "wv"]);
 
-interface Candidate {
+export interface Candidate {
   id: string;
   username: string;
   folder: string;
@@ -184,7 +188,7 @@ interface Candidate {
   queue: number;
 }
 
-function group(results: Iterable<SearchResult>): Candidate[] {
+export function group(results: Iterable<SearchResult>): Candidate[] {
   const map = new Map<string, Candidate>();
   for (const r of results) {
     const ext = r.extension.toLowerCase().replace(/^\./, "");
@@ -330,6 +334,189 @@ function SoulseekTab({ album }: { album: AlbumCard }) {
           </div>
         </div>
       ))}
+    </>
+  );
+}
+
+/* -------------------------------------------------------------------- Auto */
+
+type StepState = "pending" | "running" | "done" | "skipped" | "failed";
+interface Step { id: "deemix" | "usenet" | "soulseek"; label: string; state: StepState; detail: string }
+
+const INITIAL_STEPS: Step[] = [
+  { id: "deemix", label: "Deezer", state: "pending", detail: "Fastest and tagged, tried first" },
+  { id: "usenet", label: "Usenet", state: "pending", detail: "Best Prowlarr match" },
+  { id: "soulseek", label: "Soulseek", state: "pending", detail: "Best complete folder on the network" },
+];
+
+/** Searches Soulseek until it finishes (or times out) and returns the best-looking complete release. */
+async function pickSoulseek(album: AlbumCard): Promise<Candidate | null> {
+  const id = `flip-auto-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  const found = new Map<string, SearchResult>();
+  let finished = false;
+  const off = await events.flipsideSoulseekSearch.listen((e) => {
+    const p = e.payload;
+    if (p.snapshot.clientId !== id) return;
+    p.results.forEach((r) => found.set(r.id, r));
+    if (p.event === "completed" || p.event === "stopped" || p.event === "error") finished = true;
+  });
+  const wanted = album.trackCount ?? 0;
+  const good = () =>
+    group(found.values()).filter((c) =>
+      wanted ? c.files.length >= Math.max(3, Math.round(wanted * 0.8)) && c.files.length <= wanted * 1.6 : c.files.length >= 3,
+    );
+  try {
+    await commands.searchStart(id, `${album.artist} ${simplifyTitle(album.title)}`.trim());
+    const started = Date.now();
+    while (!finished && Date.now() - started < 22_000) {
+      await new Promise((r) => setTimeout(r, 1000));
+      // Good enough to stop early: a complete copy with a free slot, after giving peers a few seconds to answer.
+      if (Date.now() - started > 8_000 && good().some((c) => c.slotFree)) break;
+    }
+  } finally {
+    off();
+    void commands.searchStop(id).catch(() => undefined);
+    void commands.searchClose(id).catch(() => undefined);
+  }
+  const lossless = (c: Candidate) => (c.formats.has("FLAC") ? 1 : 0);
+  return good().sort((a, b) => Number(b.slotFree) - Number(a.slotFree) || lossless(b) - lossless(a) || b.speed - a.speed)[0] ?? null;
+}
+
+function AutoTab({ album, autoStart }: { album: AlbumCard; autoStart: boolean }) {
+  const { startDeemix, setUsenet, setSoulseek, connection, go } = useApp();
+  const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS);
+  const [running, setRunning] = useState(false);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const started = useRef(false);
+
+  const patch = (id: Step["id"], state: StepState, detail: string) =>
+    setSteps((s) => s.map((x) => (x.id === id ? { ...x, state, detail } : x)));
+
+  const run = useCallback(async () => {
+    setRunning(true);
+    setOutcome(null);
+    setSteps(INITIAL_STEPS);
+
+    // 1. Deezer
+    patch("deemix", "running", "Checking your Deezer account...");
+    try {
+      const cred = await commands.getDeemixCredentialStatus();
+      if (!cred.configured) {
+        patch("deemix", "skipped", "No Deezer ARL set");
+      } else {
+        const pre = await commands.preflightDeemixAlbumDownload({ albumId: album.id, artist: album.artist, album: album.title, year: album.year });
+        if (pre.alreadyDownloaded) {
+          patch("deemix", "done", "Already in your Deezer folder");
+          setOutcome("You already have this album, so nothing to do. Use the Deezer tab to download another copy.");
+          setRunning(false);
+          return;
+        }
+        patch("deemix", "running", "Downloading from Deezer...");
+        if (await startDeemix(album)) {
+          patch("deemix", "done", "Downloaded and tagged");
+          setOutcome("Got it from Deezer.");
+          setRunning(false);
+          return;
+        }
+        patch("deemix", "failed", "Deezer download failed");
+      }
+    } catch (e) {
+      patch("deemix", "failed", errorMessage(e));
+    }
+
+    // 2. Usenet
+    patch("usenet", "running", "Searching Usenet...");
+    try {
+      const res = await commands.usenetSearch({ title: simplifyTitle(album.title), artist: album.artist, year: album.year, limit: 40 });
+      const best = [...res.results].sort((a, b) => b.matchScore - a.matchScore || (b.grabs ?? 0) - (a.grabs ?? 0))[0];
+      if (!best || best.matchScore < 60) {
+        patch("usenet", "skipped", res.results.length ? "No confident match" : "No NZBs found");
+      } else {
+        setUsenet(
+          await commands.usenetEnqueueDownload({
+            guid: best.guid, title: best.title, indexer: best.indexer, downloadUrl: best.downloadUrl, sizeBytes: best.sizeBytes,
+            expectedArtist: album.artist, expectedAlbum: album.title, expectedYear: album.year, releaseGroupId: null,
+          }),
+        );
+        patch("usenet", "done", `Queued "${best.title}" (${formatBytes(best.sizeBytes)})`);
+        setOutcome("Queued on Usenet. Watch it in Downloads.");
+        setRunning(false);
+        return;
+      }
+    } catch (e) {
+      patch("usenet", "failed", errorMessage(e));
+    }
+
+    // 3. Soulseek
+    if (connection?.state !== "online") {
+      patch("soulseek", "skipped", connection?.state === "unconfigured" ? "Soulseek is not set up" : `Soulseek is ${connection?.state ?? "offline"}`);
+    } else {
+      patch("soulseek", "running", "Listening to the network (up to 20s)...");
+      try {
+        const c = await pickSoulseek(album);
+        if (!c) {
+          patch("soulseek", "skipped", "No complete copy found");
+        } else {
+          setSoulseek(
+            await commands.transferEnqueueRelease({
+              title: `${album.artist} - ${album.title}${album.year ? ` (${album.year})` : ""}`,
+              username: c.username,
+              remoteFolder: c.folder,
+              files: c.files.map((f) => ({ title: remoteTitle(f.filename), remoteFilename: f.filename, sizeBytes: f.sizeBytes })),
+              expectedTrackCount: c.files.length,
+              releaseGroupId: null,
+              alternatives: [],
+            }),
+          );
+          patch("soulseek", "done", `${c.files.length} ${[...c.formats].join("/")} files from ${c.username}`);
+          setOutcome("Queued on Soulseek. Watch it in Downloads.");
+          setRunning(false);
+          return;
+        }
+      } catch (e) {
+        patch("soulseek", "failed", errorMessage(e));
+      }
+    }
+    setOutcome("None of the providers could get this album. Try the individual tabs to pick a source by hand.");
+    setRunning(false);
+  }, [album, connection?.state, startDeemix, setUsenet, setSoulseek]);
+
+  useEffect(() => {
+    if (autoStart && !started.current) {
+      started.current = true;
+      void run();
+    }
+  }, [autoStart, run]);
+
+  const icon = (s: StepState) =>
+    s === "running" ? <Loader2 size={18} className="spin" /> :
+    s === "done" ? <CheckCircle2 size={18} style={{ color: "var(--good)" }} /> :
+    s === "failed" ? <XCircle size={18} style={{ color: "var(--bad)" }} /> :
+    s === "skipped" ? <CircleSlash size={18} style={{ color: "var(--faint)" }} /> :
+    <CircleDashed size={18} style={{ color: "var(--faint)" }} />;
+
+  return (
+    <>
+      <p className="page-sub" style={{ marginTop: 0 }}>
+        Flipside tries each provider in order and stops at the first one that delivers: Deezer, then Usenet, then Soulseek.
+      </p>
+      {steps.map((s) => (
+        <div className="result" key={s.id} style={{ gridTemplateColumns: "28px 1fr", alignItems: "center", opacity: s.state === "pending" || s.state === "skipped" ? 0.75 : 1 }}>
+          <span>{icon(s.state)}</span>
+          <div>
+            <div className="name">{s.label}</div>
+            <div className="status-line">{s.detail}</div>
+          </div>
+        </div>
+      ))}
+      {outcome ? <div className={`note${outcome.startsWith("None") ? " err" : " ok"}`}>{outcome}</div> : null}
+      <div className="form-actions">
+        <button className="btn primary" disabled={running} onClick={() => void run()}>
+          {running ? <Loader2 size={16} className="spin" /> : <Wand2 size={16} />}
+          {running ? "Working..." : outcome ? "Run again" : "Get it automatically"}
+        </button>
+        <button className="btn ghost" onClick={() => go({ name: "downloads" })}>Open downloads</button>
+      </div>
     </>
   );
 }

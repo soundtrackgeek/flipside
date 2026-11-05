@@ -55,7 +55,7 @@ interface AppState {
   dismissToast: (id: number) => void;
 
   deemixJobs: DeemixJob[];
-  startDeemix: (album: AlbumCard, allowDuplicate?: boolean) => Promise<void>;
+  startDeemix: (album: AlbumCard, allowDuplicate?: boolean) => Promise<boolean>;
   clearDeemixJobs: () => void;
   usenet: UsenetTransferQueue;
   setUsenet: (queue: UsenetTransferQueue) => void;
@@ -109,7 +109,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startDeemix = useCallback(
-    async (album: AlbumCard, allowDuplicate = false) => {
+    async (album: AlbumCard, allowDuplicate = false): Promise<boolean> => {
       const requestId = `fs-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
       const job: DeemixJob = {
         requestId,
@@ -149,12 +149,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ),
         );
         toast("success", `Downloaded ${album.artist} — ${album.title}`);
+        return true;
       } catch (error) {
         const message = errorMessage(error);
         setDeemixJobs((jobs) =>
           jobs.map((j) => (j.requestId === requestId ? { ...j, status: "failed", message } : j)),
         );
         toast("error", message);
+        return false;
       }
     },
     [toast],

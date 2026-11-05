@@ -9,7 +9,8 @@ and React.
 - **Discover** — featured album, editor's picks, genres, the album chart and popular artists.
 - **Search** albums, artists and tracks; open rich album and artist pages (track lists, discographies, related
   artists, bios, tags, backdrops).
-- **Get this album** — one drawer, three sources:
+- **Auto-get** — one click: tries Deezer, then Usenet, then Soulseek, and stops at the first that delivers.
+- **Choose source** — or pick a provider by hand in the drawer:
   - **Deezer** — direct, tagged downloads through your Deezer account (MP3 128/320 or FLAC).
   - **Usenet** — Prowlarr finds NZBs; Flipside downloads, repairs (PAR2) and extracts them itself.
   - **Soulseek** — a native protocol client with live results; downloads whole release folders.
