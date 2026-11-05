@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-11-05
+
+### Added
+- **Exclude genres** on the For you page: a tag field (type a genre and press Enter or comma) that hides any album with one of those genres, e.g. `scores`, `Soundtrack`, `Synthwave`. `scores` is Music Library's umbrella and expands to Action, Animation, Anime, Comedy, Documentary, Drama, Fantasy, Horror, Sci-Fi, Thriller, TV, Video Game and Western. Matching ignores case and hyphens, suggestions come from the genres on screen, and the list is remembered between sessions. Excluded genres also disappear from the genre chips and counts.
+
 ## [0.4.0] - 2026-11-05
 
 ### Added

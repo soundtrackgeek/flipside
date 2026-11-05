@@ -323,3 +323,12 @@ a { color: inherit; }
 .chip.pick.accent:hover { background: rgba(255, 93, 115, 0.26); color: #ffb1bb; }
 
 .field label.switch { justify-content: flex-start; }
+
+/* ---------- tag input ---------- */
+.taginput { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 38px; padding: 4px 10px; border-radius: 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--line); cursor: text; }
+.taginput:focus-within { border-color: rgba(139, 108, 255, 0.7); }
+.taginput .taglabel { font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 4px; }
+.taginput input { flex: 1; min-width: 180px; height: 28px; background: none; border: 0; outline: none; user-select: text; font-size: 13px; }
+.chip.tag { padding-right: 4px; }
+.chip.tag button { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; color: inherit; opacity: 0.7; }
+.chip.tag button:hover { opacity: 1; background: rgba(255,255,255,0.15); }

@@ -24,6 +24,8 @@ pub struct AppSettings {
     pub musicbrainz_overlay_path: String,
     /// Never show albums that are already in the library.
     pub hide_owned: bool,
+    /// Genres hidden on the For you page. "scores" expands to Music Library's film/TV/game umbrella.
+    pub excluded_genres: Vec<String>,
 }
 
 impl Default for AppSettings {
@@ -38,6 +40,7 @@ impl Default for AppSettings {
             musicbrainz_cache_path: String::new(),
             musicbrainz_overlay_path: String::new(),
             hide_owned: true,
+            excluded_genres: Vec::new(),
         }
     }
 }
@@ -60,6 +63,13 @@ impl AppSettings {
         self.library_db_path = self.library_db_path.trim().to_owned();
         self.musicbrainz_cache_path = self.musicbrainz_cache_path.trim().to_owned();
         self.musicbrainz_overlay_path = self.musicbrainz_overlay_path.trim().to_owned();
+        let mut seen = std::collections::HashSet::new();
+        self.excluded_genres = self
+            .excluded_genres
+            .iter()
+            .map(|g| g.trim().to_owned())
+            .filter(|g| !g.is_empty() && seen.insert(g.to_lowercase()))
+            .collect();
         self
     }
 }

@@ -154,6 +154,8 @@ export type AppSettings = {
 	musicbrainzOverlayPath?: string,
 	/**  Never show albums that are already in the library. */
 	hideOwned?: boolean,
+	/**  Genres hidden on the For you page. "scores" expands to Music Library's film/TV/game umbrella. */
+	excludedGenres?: string[],
 };
 
 /**  Serializes exactly as its payload. */
@@ -370,6 +372,8 @@ export type DiscoveryQuery = {
 	yearFrom?: number | null,
 	yearTo?: number | null,
 	genre?: string | null,
+	/**  Genres to leave out. "scores" expands to the film/TV/game score genres. */
+	excludeGenres?: string[],
 	text?: string,
 	/**  "affinity", "newest", "oldest" or "artist". */
 	sort?: string,

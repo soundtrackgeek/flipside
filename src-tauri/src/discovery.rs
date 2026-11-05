@@ -71,6 +71,8 @@ pub struct DiscoveryQuery {
     pub year_from: Option<i32>,
     pub year_to: Option<i32>,
     pub genre: Option<String>,
+    /// Genres to leave out. "scores" expands to the film/TV/game score genres.
+    pub exclude_genres: Vec<String>,
     pub text: String,
     /// "affinity", "newest", "oldest" or "artist".
     pub sort: String,
@@ -243,7 +245,45 @@ fn index() -> Arc<Index> {
 // Query
 // ---------------------------------------------------------------------------
 
-fn matches(item: &Item, q: &DiscoveryQuery, skip_genre: bool, skip_year: bool, text: &[String]) -> bool {
+/// Music Library's `scores` umbrella: film, TV, animation, anime and video-game score genres.
+const SCORE_GENRE_GROUP: [&str; 13] = [
+    "action", "animation", "comedy", "documentary", "drama", "fantasy", "horror", "sci fi", "thriller", "tv",
+    "video game", "western", "anime",
+];
+
+/// Case, hyphen and spacing insensitive genre key ("Sci-Fi" == "sci fi").
+fn genre_key(value: &str) -> String {
+    value.to_lowercase().replace(['-', '_'], " ").split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// The set of genre keys to hide, with the `scores` umbrella expanded.
+fn expand_excluded(items: &[String]) -> HashSet<String> {
+    let mut out = HashSet::new();
+    for item in items {
+        let key = genre_key(item);
+        if key.is_empty() {
+            continue;
+        }
+        if key == "score" || key == "scores" {
+            out.extend(SCORE_GENRE_GROUP.iter().map(|g| (*g).to_owned()));
+        } else {
+            out.insert(key);
+        }
+    }
+    out
+}
+
+fn matches(
+    item: &Item,
+    q: &DiscoveryQuery,
+    skip_genre: bool,
+    skip_year: bool,
+    text: &[String],
+    excluded: &HashSet<String>,
+) -> bool {
+    if !excluded.is_empty() && item.genres_lc.iter().any(|g| excluded.contains(&genre_key(g))) {
+        return false;
+    }
     if !skip_year {
         let year = item.view.year;
         if let Some(decade) = q.decade {
@@ -277,6 +317,7 @@ pub fn query(q: &DiscoveryQuery) -> DiscoveryPage {
     let index = index();
     let text: Vec<String> = q.text.to_lowercase().split_whitespace().map(str::to_owned).collect();
     let limit = if q.limit == 0 { 60 } else { q.limit.min(200) } as usize;
+    let excluded = expand_excluded(&q.exclude_genres);
 
     // Genre facets ignore the genre filter, decade facets ignore the year filters, so you can switch.
     let mut genre_counts: HashMap<String, (String, u32)> = HashMap::new();
@@ -291,18 +332,18 @@ pub fn query(q: &DiscoveryQuery) -> DiscoveryPage {
             _ => true,
         };
         if source_ok {
-            if matches(item, q, true, false, &text) {
+            if matches(item, q, true, false, &text, &excluded) {
                 for (lc, label) in item.genres_lc.iter().zip(&item.view.genres) {
                     genre_counts.entry(lc.clone()).or_insert_with(|| (label.clone(), 0)).1 += 1;
                 }
             }
-            if matches(item, q, false, true, &text) {
+            if matches(item, q, false, true, &text, &excluded) {
                 if let Some(year) = item.view.year {
                     *decade_counts.entry(year / 10 * 10).or_default() += 1;
                 }
             }
         }
-        if matches(item, q, false, false, &text) {
+        if matches(item, q, false, false, &text, &excluded) {
             if item.view.similar {
                 similar_total += 1;
             } else {
@@ -870,6 +911,32 @@ fn lastfm_tags(name: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn item(genres: &[&str]) -> Item {
+        make_item(
+            DiscoveryAlbum {
+                id: "x".into(), title: "T".into(), artist: "A".into(), artist_mbid: None, year: Some(1999),
+                genres: genres.iter().map(|g| (*g).to_owned()).collect(), similar: false, because: vec![], cover: String::new(),
+            },
+            1.0,
+        )
+    }
+
+    #[test]
+    fn scores_umbrella_and_plain_genres_are_excluded() {
+        let excluded = expand_excluded(&["scores".to_owned(), "Soundtrack".to_owned(), " synthwave ".to_owned()]);
+        let q = DiscoveryQuery::default();
+        let allowed = |genres: &[&str]| matches(&item(genres), &q, false, false, &[], &excluded);
+        assert!(!allowed(&["TV"]));
+        assert!(!allowed(&["Video Game"]));
+        assert!(!allowed(&["Sci-Fi"]), "hyphen and case must not matter");
+        assert!(!allowed(&["Soundtrack"]));
+        assert!(!allowed(&["Synthwave"]));
+        assert!(!allowed(&["Rock", "Drama"]), "any excluded genre hides the album");
+        assert!(allowed(&["Rock"]));
+        assert!(allowed(&[]), "albums without a genre are not excluded");
+        assert!(excluded.contains("thriller") && excluded.contains("anime"));
+    }
 
     #[test]
     fn title_case_keeps_inner_caps() {

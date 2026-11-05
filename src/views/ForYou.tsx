@@ -4,6 +4,7 @@ import { commands, events } from "../bindings";
 import type { AlbumCard, DiscoveryAlbum, DiscoveryPage, DiscoveryQuery, DiscoveryStatus } from "../bindings";
 import { useApp } from "../store";
 import GetDrawer from "../components/GetDrawer";
+import TagInput from "../components/TagInput";
 import { Empty } from "../components/ui";
 import { errorMessage } from "../lib/format";
 
@@ -59,6 +60,8 @@ export default function ForYou() {
   const [text, setText] = useState("");
   const [debounced, setDebounced] = useState("");
   const [sort, setSort] = useState("affinity");
+  const [exclude, setExclude] = useState<string[]>([]);
+  const [excludeReady, setExcludeReady] = useState(false);
 
   const [page, setPage] = useState<DiscoveryPage | null>(null);
   const [items, setItems] = useState<DiscoveryAlbum[]>([]);
@@ -72,9 +75,9 @@ export default function ForYou() {
   useEffect(() => { const t = window.setTimeout(() => setDebounced(text), 250); return () => window.clearTimeout(t); }, [text]);
 
   const build = useCallback((offset: number): DiscoveryQuery => ({
-    source, decade, genre, text: debounced, sort, offset, limit: PAGE,
+    source, decade, genre, text: debounced, sort, offset, limit: PAGE, excludeGenres: exclude,
     yearFrom: yearFrom ? Number(yearFrom) : null, yearTo: yearTo ? Number(yearTo) : null,
-  }), [source, decade, genre, debounced, sort, yearFrom, yearTo]);
+  }), [source, decade, genre, debounced, sort, yearFrom, yearTo, exclude]);
 
   const load = useCallback(async (reset: boolean) => {
     const mine = ++generation.current;
@@ -93,7 +96,22 @@ export default function ForYou() {
   }, [build, items.length]);
 
   // Reload from the top whenever a filter changes.
-  useEffect(() => { void load(true); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [source, decade, genre, debounced, sort, yearFrom, yearTo]);
+  useEffect(() => {
+    if (excludeReady) void load(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, decade, genre, debounced, sort, yearFrom, yearTo, exclude, excludeReady]);
+
+  // Excluded genres are a standing preference: load them first, save changes.
+  useEffect(() => {
+    void commands.getSettings().then((s) => setExclude(s.excludedGenres ?? [])).catch(() => undefined).finally(() => setExcludeReady(true));
+  }, []);
+  const changeExclude = useCallback((next: string[]) => {
+    setExclude(next);
+    if (genre && next.some((g) => g.toLowerCase() === genre.toLowerCase())) setGenre(null);
+    void commands.getSettings()
+      .then((s) => commands.saveSettings({ ...s, excludedGenres: next }))
+      .catch((e) => toast("error", errorMessage(e)));
+  }, [genre, toast]);
 
   // Crawl status + live progress; refresh the grid as the crawl finds more albums.
   useEffect(() => {
@@ -140,6 +158,7 @@ export default function ForYou() {
   const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : null;
   const lib = status?.library;
   const filtered = decade !== null || genre !== null || !!yearFrom || !!yearTo || !!debounced;
+  const suggestions = ["scores", "Soundtrack", ...(page?.genres.map((g) => g.label) ?? [])];
 
   return (
     <>
@@ -197,6 +216,10 @@ export default function ForYou() {
             <RefreshCw size={13} className={running ? "spin" : ""} /> Find more
           </button>
         </div>
+        <TagInput
+          label="Exclude genres" tags={exclude} onChange={changeExclude} suggestions={suggestions}
+          placeholder='e.g. scores, Soundtrack, Synthwave (scores = film, TV and game music)'
+        />
         {page && page.decades.length > 0 ? (
           <div className="chips-row" aria-label="Decade">
             {page.decades.map((d) => (
