@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-11-05
+
+### Fixed
+- Pages could not be scrolled: the content area now scrolls, so the bottom of Discover (genres, charts) and Settings are reachable.
+
 ## [0.1.0] - 2026-11-05
 
 ### Added
