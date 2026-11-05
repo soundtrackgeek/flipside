@@ -94,6 +94,9 @@ export default function ForYou() {
       if (mine === generation.current) setLoading(false);
     }
   }, [build, items.length]);
+  // The crawl listener below is registered once; it must always call the *latest* load (current filters).
+  const loadRef = useRef(load);
+  loadRef.current = load;
 
   // Reload from the top whenever a filter changes.
   useEffect(() => {
@@ -123,10 +126,10 @@ export default function ForYou() {
       setStatus((s) => (s ? { ...s, progress: e.payload } : s));
       if (!e.payload.running) {
         void commands.discoveryStatus().then(setStatus).catch(() => undefined);
-        void load(true);
+        void loadRef.current(true);
       } else if (e.payload.stage === "albums" && Date.now() - lastReload > 20_000) {
         lastReload = Date.now();
-        void load(true);
+        void loadRef.current(true);
       }
     }).then((fn) => { if (cancelled) fn(); else off = fn; });
     return () => { cancelled = true; off?.(); };

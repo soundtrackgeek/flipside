@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] - 2026-11-05
+
+### Fixed
+- Excluded genres (and every other For you filter) were forgotten whenever the background crawl refreshed the page, so excluded albums reappeared a few seconds later. The refresh now always uses your current filters.
+
 ## [0.5.0] - 2026-11-05
 
 ### Added
