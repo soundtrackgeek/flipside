@@ -23,9 +23,9 @@
    - Use `git add` to stage all modified files (README.md, CHANGELOG.md, and code files)
    - Create descriptive commit message following existing style
    - Push to remote repository with `git push`
-   - **Gotcha**: if the commit touches `.github/workflows/`, a plain `git push` is rejected with
-     `fatal error in commit_refs` because the default git credential lacks the `workflow` scope. Push with the
-     GitHub CLI's credential instead:
+   - **Gotcha**: a plain `git push` is rejected with `fatal error in commit_refs` (the default git credential
+     lacks the `workflow` scope and the repo contains workflow files). Always push with the GitHub CLI's
+     credential instead:
      `git -c credential.helper= -c "credential.helper=!gh auth git-credential" push`
 
 5. **After every push, make sure the release workflow produced downloadable `.exe` files**:
