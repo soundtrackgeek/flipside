@@ -1,89 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Disc3, Download, Loader2, RefreshCw, Search as SearchIcon, Sparkles, X } from "lucide-react";
+import { Disc3, Loader2, RefreshCw, Search as SearchIcon, Sparkles, X } from "lucide-react";
 import { commands, events } from "../bindings";
-import type { AlbumCard, DiscoveryAlbum, DiscoveryPage, DiscoveryQuery, DiscoveryStatus } from "../bindings";
+import type { DiscoveryAlbum, DiscoveryPage, DiscoveryQuery, DiscoveryStatus } from "../bindings";
 import { useApp } from "../store";
-import GetDrawer from "../components/GetDrawer";
+import { DiscTile, useAlbumOpener, useArtistOpener } from "../components/DiscTile";
 import TagInput from "../components/TagInput";
 import { Empty } from "../components/ui";
 import { errorMessage } from "../lib/format";
 
 const PAGE = 60;
 type Source = "all" | "missing" | "similar";
-
-// At most a few cover lookups at a time: a page of misses must not hammer Deezer/Discogs.
-let activeLookups = 0;
-const lookupQueue: Array<() => void> = [];
-function limited<T>(task: () => Promise<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const run = () => {
-      activeLookups++;
-      task().then(resolve, reject).finally(() => { activeLookups--; lookupQueue.shift()?.(); });
-    };
-    if (activeLookups < 3) run(); else lookupQueue.push(run);
-  });
-}
-
-/**
- * Cover Art Archive first (loaded directly). If that fails, retry once (it sometimes times out),
- * then ask the backend, which tries Deezer and Discogs and remembers the answer.
- */
-function DiscCover({ album }: { album: DiscoveryAlbum }) {
-  const [src, setSrc] = useState<string | null>(album.cover);
-  const [loaded, setLoaded] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-
-  function onError() {
-    if (attempt === 0) {
-      window.setTimeout(() => setAttempt(1), 1500);
-      return;
-    }
-    if (attempt === 1) {
-      setAttempt(2);
-      void limited(() => commands.catalogCover(album.id, album.artist, album.title))
-        .then((url) => setSrc(url && url !== src ? url : null))
-        .catch(() => setSrc(null));
-      return;
-    }
-    setSrc(null);
-  }
-
-  return (
-    <div className="art">
-      <div className="ph"><Disc3 size={34} /></div>
-      {src ? (
-        <img
-          key={`${src}#${attempt === 1 ? "retry" : ""}`}
-          src={src} alt={album.title} loading="lazy" decoding="async" draggable={false}
-          className={loaded ? "loaded" : ""} style={{ position: "absolute", inset: 0 }}
-          onLoad={() => setLoaded(true)} onError={onError}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function Tile({ album, busy, onOpen }: { album: DiscoveryAlbum; busy: boolean; onOpen: (a: DiscoveryAlbum) => void }) {
-  const { go } = useApp();
-  return (
-    <div className="card" role="link" tabIndex={0} onClick={() => onOpen(album)} onKeyDown={(e) => e.key === "Enter" && onOpen(album)}>
-      <div style={{ position: "relative" }}>
-        <DiscCover album={album} />
-        <button className="get" title="Get this album" aria-label={`Get ${album.title}`} onClick={(e) => { e.stopPropagation(); onOpen(album); }}>
-          {busy ? <Loader2 size={18} className="spin" /> : <Download size={18} />}
-        </button>
-      </div>
-      <div className="title" title={album.title}>{album.title}</div>
-      <div className="sub">
-        <button onClick={(e) => { e.stopPropagation(); go({ name: "search", q: album.artist }); }}>{album.artist}</button>
-        {album.year ? ` · ${album.year}` : ""}
-      </div>
-      <div className="sub" title={album.similar ? `Because you own ${album.because.join(", ")}` : "You own other albums by this artist"} style={{ color: "var(--faint)" }}>
-        {album.similar ? (album.because.length ? `Like ${album.because[0]}` : "Similar to your artists") : album.genres[0] ?? "Missing from your library"}
-      </div>
-    </div>
-  );
-}
 
 export default function ForYou() {
   const { toast, go } = useApp();
@@ -103,8 +29,8 @@ export default function ForYou() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<DiscoveryStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [resolving, setResolving] = useState<string | null>(null);
-  const [drawer, setDrawer] = useState<AlbumCard | null>(null);
+  const { open, resolving, drawerNode } = useAlbumOpener();
+  const openArtist = useArtistOpener();
   const generation = useRef(0);
 
   useEffect(() => { const t = window.setTimeout(() => setDebounced(text), 250); return () => window.clearTimeout(t); }, [text]);
@@ -170,26 +96,6 @@ export default function ForYou() {
     return () => { cancelled = true; off?.(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function open(album: DiscoveryAlbum) {
-    setResolving(album.id);
-    try {
-      const found = await commands.catalogResolveAlbum(album.artist, album.title);
-      if (found) {
-        go({ name: "album", id: found.id });
-      } else {
-        // Not on Deezer: still downloadable from Usenet or Soulseek.
-        setDrawer({
-          id: "", title: album.title, artist: album.artist, artistId: null, cover: album.cover, coverLarge: album.cover,
-          year: album.year, releaseDate: null, kind: "album", trackCount: null, explicit: false,
-        });
-      }
-    } catch (e) {
-      toast("error", errorMessage(e));
-    } finally {
-      setResolving(null);
-    }
-  }
 
   const progress = status?.progress;
   const running = !!progress?.running;
@@ -286,7 +192,7 @@ export default function ForYou() {
       ) : null}
 
       <div className="grid" style={{ marginTop: 18 }}>
-        {items.map((a) => <Tile key={a.id} album={a} busy={resolving === a.id} onOpen={(x) => void open(x)} />)}
+        {items.map((a) => <DiscTile key={a.id} album={a} busy={resolving === a.id} onOpen={(x) => void open(x)} onArtist={(n) => void openArtist(n)} />)}
       </div>
 
       {page && items.length < page.total ? (
@@ -297,7 +203,7 @@ export default function ForYou() {
         </div>
       ) : null}
 
-      {drawer ? <GetDrawer album={drawer} onClose={() => setDrawer(null)} /> : null}
+      {drawerNode}
     </>
   );
 }

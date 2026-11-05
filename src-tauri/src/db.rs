@@ -182,6 +182,8 @@ pub fn migrate(conn: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS disc_meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
         -- Cover art found through Deezer/Discogs when the Cover Art Archive has none (url NULL = looked, found nothing).
         CREATE TABLE IF NOT EXISTS disc_cover (rgid TEXT PRIMARY KEY, url TEXT, source TEXT, checked_at TEXT NOT NULL);
+        -- Original release year per artist|title (year NULL = looked, found nothing).
+        CREATE TABLE IF NOT EXISTS disc_year (k TEXT PRIMARY KEY, year INTEGER, checked_at TEXT NOT NULL);
         ",
     )?;
     Ok(())

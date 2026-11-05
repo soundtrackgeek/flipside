@@ -172,6 +172,9 @@ pub struct ArtistEnrichment {
     pub background: Option<String>,
     pub thumb: Option<String>,
     pub bio: Option<String>,
+    /// "Wikipedia" or "Last.fm".
+    pub bio_source: Option<String>,
+    pub bio_url: Option<String>,
     pub tags: Vec<String>,
     pub similar: Vec<String>,
     pub listeners: Option<f64>,
@@ -448,6 +451,17 @@ pub(crate) fn lastfm_json(method: &str, params: &[(&str, &str)]) -> Option<Value
     lastfm(method, params)
 }
 
+/// The Deezer artist with exactly this name (the most popular one if several share it).
+pub fn resolve_artist(name: &str) -> Result<Option<ArtistCard>> {
+    let wanted = loose_artist_key(name);
+    let value = deezer("/search/artist", &[("q", name), ("limit", "10")])?;
+    Ok(items(Some(&value))
+        .iter()
+        .filter_map(artist_card)
+        .filter(|a| loose_artist_key(&a.name) == wanted)
+        .max_by_key(|a| a.fans.unwrap_or(0)))
+}
+
 /// Finds the Deezer album matching a MusicBrainz/Discogs release so it can be opened and downloaded.
 pub fn resolve_album(artist: &str, title: &str) -> Result<Option<AlbumCard>> {
     let wanted_artist = loose_artist_key(artist);
@@ -523,10 +537,23 @@ pub fn artist_enrichment(name: &str) -> Result<ArtistEnrichment> {
         }
         _ => (None, None),
     };
+    // Wikipedia reads better and is longer; Last.fm's blurb is the fallback.
+    let (bio, bio_source, bio_url) = match crate::meta::wikipedia_bio(name) {
+        Some((text, url)) => (Some(text), Some("Wikipedia".to_owned()), Some(url)),
+        None => match summary_of(artist, "bio") {
+            Some(text) => {
+                let slug = percent_encoding::utf8_percent_encode(name, percent_encoding::NON_ALPHANUMERIC).to_string();
+                (Some(text), Some("Last.fm".to_owned()), Some(format!("https://www.last.fm/music/{slug}")))
+            }
+            None => (None, None, None),
+        },
+    };
     Ok(ArtistEnrichment {
         background,
         thumb,
-        bio: summary_of(artist, "bio"),
+        bio,
+        bio_source,
+        bio_url,
         tags: tag_names(artist.and_then(|a| a.get("tags"))),
         similar: artist
             .and_then(|a| a.get("similar"))

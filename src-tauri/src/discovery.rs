@@ -130,11 +130,11 @@ struct Index {
     items: Vec<Item>,
 }
 
-fn caa(rgid: &str) -> String {
+pub(crate) fn caa(rgid: &str) -> String {
     format!("https://coverartarchive.org/release-group/{rgid}/front-500")
 }
 
-fn title_case(value: &str) -> String {
+pub(crate) fn title_case(value: &str) -> String {
     value
         .split_whitespace()
         .map(|word| {
@@ -720,19 +720,19 @@ fn fetch_artist_albums(
     Ok(())
 }
 
-struct FoundAlbum {
-    id: String,
-    title: String,
-    year: Option<i32>,
-    genres: Vec<String>,
-    cover: Option<String>,
+pub(crate) struct FoundAlbum {
+    pub id: String,
+    pub title: String,
+    pub year: Option<i32>,
+    pub genres: Vec<String>,
+    pub cover: Option<String>,
 }
 
 fn string_at<'a>(value: &'a Value, key: &str) -> &'a str {
     value.get(key).and_then(Value::as_str).unwrap_or_default()
 }
 
-fn musicbrainz_artist(name: &str) -> Result<Option<String>> {
+pub(crate) fn musicbrainz_artist(name: &str) -> Result<Option<String>> {
     let query = format!("artist:\"{}\"", name.replace('"', ""));
     let value = catalog::cached_get(
         "https://musicbrainz.org/ws/2/artist",
@@ -752,7 +752,7 @@ fn musicbrainz_artist(name: &str) -> Result<Option<String>> {
 }
 
 /// Studio albums only: primary type Album and *no* secondary types.
-fn musicbrainz_studio_albums(mbid: &str) -> Result<Vec<FoundAlbum>> {
+pub(crate) fn musicbrainz_studio_albums(mbid: &str) -> Result<Vec<FoundAlbum>> {
     let mut out = Vec::new();
     let mut offset = 0;
     loop {
@@ -795,7 +795,7 @@ fn musicbrainz_studio_albums(mbid: &str) -> Result<Vec<FoundAlbum>> {
             break;
         }
     }
-    out.retain(|a| !a.id.is_empty() && !a.title.is_empty());
+    out.retain(|a| !a.id.is_empty() && !a.title.is_empty() && !library::looks_like_compilation(&a.title));
     // MusicBrainz also lists bootlegs and unreleased material as plain "Album": keep only release
     // groups that have at least one official release (Music Library's cache applies the same rule).
     if !out.is_empty() {
@@ -969,4 +969,12 @@ mod tests {
         println!("similar ok: {}", similar.is_some());
         assert!(similar.is_some(), "Last.fm key should be configured");
     }
+}
+
+/// MusicBrainz id of a candidate artist the crawl already resolved.
+pub(crate) fn known_mbid(cand_key: &str) -> Option<String> {
+    flip()
+        .ok()?
+        .query_row("SELECT mbid FROM disc_artist WHERE cand_key = ?1 AND mbid IS NOT NULL", [cand_key], |r| r.get(0))
+        .ok()
 }

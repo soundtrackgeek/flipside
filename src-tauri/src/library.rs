@@ -51,6 +51,10 @@ pub struct Library {
     pub artists: HashMap<String, OwnedArtist>,
     /// MusicBrainz id -> owned artist key.
     pub mbid_to_key: HashMap<String, String>,
+    /// Owned artist key -> MusicBrainz id.
+    pub key_to_mbid: HashMap<String, String>,
+    /// Release groups that are out of scope or have no official release.
+    pub excluded: HashSet<String>,
     pub missing: Vec<MissingAlbum>,
     pub owned_album_count: usize,
     pub loaded_at: Option<SystemTime>,
@@ -79,6 +83,18 @@ static LIBRARY: RwLock<Option<Arc<Library>>> = RwLock::new(None);
 static LOADING: AtomicBool = AtomicBool::new(false);
 static LAST_ERROR: Mutex<Option<String>> = Mutex::new(None);
 static LAST_STAMP_CHECK: Mutex<Option<(Instant, Option<SystemTime>)>> = Mutex::new(None);
+
+/// MusicBrainz often leaves "best of" records untagged, so they look like studio albums. Unmistakable
+/// compilation titles are dropped as well; the phrases are specific enough not to hit real album names.
+pub(crate) fn looks_like_compilation(title: &str) -> bool {
+    const PHRASES: [&str; 13] = [
+        "greatest hits", "the best of", "very best", "best of the", "anthology", "the collection", "the essential",
+        "essential collection", "ultimate collection", "complete collection", "hit singles", "retrospective",
+        "all time greatest",
+    ];
+    let lower = title.to_lowercase();
+    lower.starts_with("best of ") || PHRASES.iter().any(|phrase| lower.contains(phrase))
+}
 
 pub fn hide_owned() -> bool {
     HIDE_OWNED.load(Ordering::Relaxed)
@@ -343,7 +359,8 @@ pub fn load(paths: &Paths) -> Result<Library> {
     }
     for (key, mbid) in artist_mbid {
         if out.artists.contains_key(&key) {
-            out.mbid_to_key.insert(mbid, key);
+            out.mbid_to_key.insert(mbid.clone(), key.clone());
+            out.key_to_mbid.insert(key, mbid);
         }
     }
 
@@ -360,7 +377,7 @@ pub fn load(paths: &Paths) -> Result<Library> {
     let mut take = |rows: Vec<ReleaseGroupRow>, out: &mut Library| {
         for row in rows {
             let Some(artist_key) = out.mbid_to_key.get(&row.artist_mbid).cloned() else { continue };
-            if excluded.contains(&row.rgid) || !seen_groups.insert(row.rgid.clone()) {
+            if excluded.contains(&row.rgid) || looks_like_compilation(&row.title) || !seen_groups.insert(row.rgid.clone()) {
                 continue;
             }
             let title_key = edition_title_key(&row.title);
@@ -385,9 +402,47 @@ pub fn load(paths: &Paths) -> Result<Library> {
         take(studio_albums(cache, "release_groups"), &mut out);
     }
 
+    out.excluded = excluded;
     out.loaded_at = Some(SystemTime::now());
     Ok(out)
 }
+
+/// Release groups the local MusicBrainz data (overlay, Music Library, cache) holds for one artist:
+/// `(release group id, title, year)`. With `studio_only`, only official studio albums are returned.
+pub fn local_albums(mbid: &str, studio_only: bool) -> Vec<(String, String, Option<i32>)> {
+    let paths = paths();
+    let excluded = loaded().map(|l| l.excluded.clone()).unwrap_or_default();
+    let filter = if studio_only {
+        " AND type = 'Album' AND (secondary_types IS NULL OR secondary_types = '') AND (status IS NULL OR status = 'Official')"
+    } else {
+        ""
+    };
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    for (path, table) in [
+        (paths.overlay, "musicbrainz_artist_release_groups"),
+        (paths.library, "musicbrainz_artist_release_groups"),
+        (paths.mb_cache, "release_groups"),
+    ] {
+        let Some(conn) = path.and_then(|p| open_ro(&p).ok()) else { continue };
+        let sql = format!("SELECT release_mbid, title, year FROM {table} WHERE artist_mbid = ?1{filter}");
+        let Ok(mut stmt) = conn.prepare(&sql) else { continue };
+        let Ok(rows) = stmt.query_map([mbid], |r| {
+            Ok((r.get::<_, Option<String>>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, Option<i64>>(2)?))
+        }) else {
+            continue;
+        };
+        for (rgid, title, year) in rows.flatten() {
+            let (Some(rgid), Some(title)) = (rgid, title) else { continue };
+            if (studio_only && (excluded.contains(&rgid) || looks_like_compilation(&title))) || !seen.insert(rgid.clone()) {
+                continue;
+            }
+            out.push((rgid, title, year.map(|y| y as i32).filter(|y| *y > 1900)));
+        }
+    }
+    out
+}
+
 
 fn add_owned(out: &mut Library, artist: &str, album: &str) {
     let title_key = edition_title_key(album);
@@ -433,6 +488,16 @@ pub fn status() -> LibraryStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compilation_titles_are_recognised() {
+        for title in ["The Very Best of Janie Fricke", "Greatest Hits", "Best of Both Worlds", "Donna Fargo: All-Time Greatest Hits", "The Essential Dolly Parton", "Anthology"] {
+            assert!(looks_like_compilation(title), "{title}");
+        }
+        for title in ["Discovery", "Bestial", "Homework", "Live and Let Die", "The Happiest Girl in the Whole U.S.A.", "Rest of Us"] {
+            assert!(!looks_like_compilation(title), "{title}");
+        }
+    }
 
     #[test]
     fn owned_lookup_ignores_editions_and_the() {

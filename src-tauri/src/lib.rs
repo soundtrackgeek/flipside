@@ -11,6 +11,7 @@ mod events;
 mod http;
 mod identity;
 mod keys;
+mod meta;
 mod library;
 mod soulseek;
 mod updater;
@@ -100,6 +101,27 @@ async fn catalog_resolve_album(artist: String, title: String) -> Result<Option<c
 #[specta::specta]
 async fn catalog_cover(rgid: String, artist: String, title: String) -> Result<Option<String>, String> {
     blocking(move || covers::lookup(&rgid, &artist, &title)).await
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn catalog_artist_albums(name: String) -> Result<Vec<discovery::DiscoveryAlbum>, String> {
+    blocking(move || meta::artist_albums(&name)).await
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn catalog_original_year(artist: String, title: String) -> Result<Option<i32>, String> {
+    blocking(move || meta::original_year(&artist, &title)).await
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn catalog_resolve_artist(name: String) -> Result<Option<catalog::ArtistCard>, String> {
+    blocking(move || catalog::resolve_artist(&name)).await
 }
 
 // --- For you: library-aware discovery -------------------------------------------

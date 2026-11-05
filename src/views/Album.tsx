@@ -11,6 +11,7 @@ export default function Album({ id, openGet }: { id: string; openGet?: boolean }
   const { go } = useApp();
   const [detail, setDetail] = useState<AlbumDetail | null>(null);
   const [extra, setExtra] = useState<AlbumEnrichment | null>(null);
+  const [originalYear, setOriginalYear] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<{ tab: Tab; autoStart: boolean } | null>(openGet ? { tab: "auto", autoStart: false } : null);
 
@@ -18,6 +19,7 @@ export default function Album({ id, openGet }: { id: string; openGet?: boolean }
     let alive = true;
     setDetail(null);
     setExtra(null);
+    setOriginalYear(null);
     setError(null);
     setDrawer(openGet ? { tab: "auto", autoStart: false } : null);
     commands
@@ -26,6 +28,7 @@ export default function Album({ id, openGet }: { id: string; openGet?: boolean }
         if (!alive) return;
         setDetail(d);
         void commands.catalogAlbumEnrichment(d.album.artist, d.album.title).then((x) => alive && setExtra(x)).catch(() => undefined);
+        void commands.catalogOriginalYear(d.album.artist, d.album.title).then((y) => alive && setOriginalYear(y)).catch(() => undefined);
       })
       .catch((e) => alive && setError(errorMessage(e)));
     return () => { alive = false; };
@@ -51,7 +54,7 @@ export default function Album({ id, openGet }: { id: string; openGet?: boolean }
               {album.artistId ? (
                 <button onClick={() => go({ name: "artist", id: album.artistId! })}>{album.artist}</button>
               ) : album.artist}
-              {album.year ? ` · ${album.year}` : ""}
+              {(originalYear ?? album.year) ? ` · ${originalYear ?? album.year}` : ""}
               {detail.tracks.length ? ` · ${detail.tracks.length} tracks` : ""}
               {detail.durationSeconds ? ` · ${formatTotalDuration(detail.durationSeconds)}` : ""}
             </div>

@@ -1,45 +1,87 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { commands } from "../bindings";
-import type { ArtistDetail, ArtistEnrichment } from "../bindings";
-import { useApp } from "../store";
-import { AlbumTile, ArtistTile, Empty, Section } from "../components/ui";
-import { errorMessage, formatCount, formatDuration, kindLabel } from "../lib/format";
+import type { ArtistDetail, ArtistEnrichment, DiscoveryAlbum } from "../bindings";
+import { DiscTile, useAlbumOpener, useArtistOpener } from "../components/DiscTile";
+import { AlbumTile, Empty, Section, SkeletonGrid } from "../components/ui";
+import { limited } from "../lib/limit";
+import { errorMessage, formatCount } from "../lib/format";
 
-export default function Artist({ id }: { id: string }) {
-  const { go } = useApp();
-  const [detail, setDetail] = useState<ArtistDetail | null>(null);
-  const [extra, setExtra] = useState<ArtistEnrichment | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<string>("all");
+const SIMILAR_ARTISTS = 8;
+const ALBUMS_PER_SIMILAR = 12;
+
+/** One "If you like ..." row: a similar artist and their own studio albums. */
+function SimilarRow({
+  name, busyId, onOpen, onArtist,
+}: { name: string; busyId: string | null; onOpen: (a: DiscoveryAlbum) => void; onArtist: (name: string) => void }) {
+  const [albums, setAlbums] = useState<DiscoveryAlbum[] | null>(null);
 
   useEffect(() => {
     let alive = true;
-    setDetail(null);
-    setExtra(null);
-    setError(null);
-    setFilter("all");
+    void limited(() => commands.catalogArtistAlbums(name))
+      .then((a) => alive && setAlbums(a))
+      .catch(() => alive && setAlbums([]));
+    return () => { alive = false; };
+  }, [name]);
+
+  // Nothing worth showing (unknown artist, or you already own all of their albums).
+  if (albums && albums.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: 26 }}>
+      <div className="section-head" style={{ marginBottom: 10 }}>
+        <h2 style={{ fontSize: 19 }}>
+          <button onClick={() => onArtist(name)} style={{ font: "inherit" }} className="artist-link">{name}</button>
+        </h2>
+        {albums ? <span>{albums.length} studio {albums.length === 1 ? "album" : "albums"}</span> : null}
+      </div>
+      {albums ? (
+        <div className="rail">
+          {albums.slice(0, ALBUMS_PER_SIMILAR).map((a) => (
+            <DiscTile key={a.id} album={a} showArtist={false} busy={busyId === a.id} onOpen={onOpen} />
+          ))}
+        </div>
+      ) : (
+        <SkeletonGrid rail count={6} />
+      )}
+    </div>
+  );
+}
+
+export default function Artist({ id }: { id: string }) {
+  const [detail, setDetail] = useState<ArtistDetail | null>(null);
+  const [extra, setExtra] = useState<ArtistEnrichment | null>(null);
+  const [extraDone, setExtraDone] = useState(false);
+  const [albums, setAlbums] = useState<DiscoveryAlbum[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { open, resolving, drawerNode } = useAlbumOpener();
+  const openArtist = useArtistOpener();
+
+  useEffect(() => {
+    let alive = true;
+    setDetail(null); setExtra(null); setExtraDone(false); setAlbums(null); setError(null);
     commands
       .catalogArtist(id)
       .then((d) => {
         if (!alive) return;
         setDetail(d);
-        void commands.catalogArtistEnrichment(d.artist.name).then((x) => alive && setExtra(x)).catch(() => undefined);
+        const name = d.artist.name;
+        void commands.catalogArtistEnrichment(name).then((x) => alive && setExtra(x)).catch(() => undefined).finally(() => alive && setExtraDone(true));
+        void commands.catalogArtistAlbums(name).then((a) => alive && setAlbums(a)).catch(() => alive && setAlbums([]));
       })
       .catch((e) => alive && setError(errorMessage(e)));
     return () => { alive = false; };
   }, [id]);
 
-  const kinds = useMemo(() => {
-    const counts = new Map<string, number>();
-    detail?.albums.forEach((a) => counts.set(a.kind || "album", (counts.get(a.kind || "album") ?? 0) + 1));
-    return [...counts.entries()];
-  }, [detail]);
-
   if (error) return <Empty>Couldn't load this artist: {error}</Empty>;
   if (!detail) return <div className="skeleton" style={{ height: 320, borderRadius: 18 }} />;
 
   const { artist } = detail;
-  const albums = detail.albums.filter((a) => filter === "all" || (a.kind || "album") === filter);
+  const similarNames = !extraDone
+    ? []
+    : (extra?.similar.length ? extra.similar : detail.related.map((r) => r.name))
+        .filter((n) => n.toLowerCase() !== artist.name.toLowerCase())
+        .slice(0, SIMILAR_ARTISTS);
 
   return (
     <>
@@ -59,42 +101,46 @@ export default function Artist({ id }: { id: string }) {
         </div>
       </div>
 
-      {extra?.bio ? <p className="prose" style={{ marginTop: 22 }}>{extra.bio}</p> : null}
-
-      {detail.topTracks.length > 0 ? (
-        <Section title="Popular tracks">
-          <div className="tracklist" style={{ marginTop: 0 }}>
-            {detail.topTracks.map((t, i) => (
-              <div className="track" key={t.id} style={{ cursor: t.albumId ? "pointer" : "default" }}
-                onClick={() => t.albumId && go({ name: "album", id: t.albumId })}>
-                <span className="n">{i + 1}</span>
-                <span className="t">{t.title}<div className="a">{t.albumTitle}</div></span>
-                <span className="d">{formatDuration(t.durationSeconds)}</span>
-              </div>
-            ))}
-          </div>
-        </Section>
+      {extra?.bio ? (
+        <div style={{ marginTop: 22 }}>
+          <p className="prose" style={{ margin: 0 }}>{extra.bio}</p>
+          {extra.bioUrl ? (
+            <button
+              className="chip pick" style={{ marginTop: 10 }}
+              onClick={() => void import("@tauri-apps/plugin-opener").then((m) => m.openUrl(extra.bioUrl!))}
+            >
+              Read more on {extra.bioSource} <ExternalLink size={11} />
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
-      <Section title="Discography" hint={`${detail.albums.length} releases`}>
-        {kinds.length > 1 ? (
-          <div className="facts" style={{ marginTop: 0 }}>
-            <button className={`chip${filter === "all" ? " accent" : ""}`} onClick={() => setFilter("all")}>All</button>
-            {kinds.map(([kind, n]) => (
-              <button key={kind} className={`chip${filter === kind ? " accent" : ""}`} onClick={() => setFilter(kind)}>
-                {kindLabel(kind)} · {n}
-              </button>
-            ))}
+      <Section title={`Albums by ${artist.name}`} hint={albums && albums.length ? `${albums.length} studio albums` : undefined}>
+        {albums === null ? (
+          <SkeletonGrid count={6} />
+        ) : albums.length > 0 ? (
+          <div className="grid">
+            {albums.map((a) => <DiscTile key={a.id} album={a} showArtist={false} busy={resolving === a.id} onOpen={(x) => void open(x)} />)}
           </div>
-        ) : null}
-        <div className="grid">{albums.map((a) => <AlbumTile key={a.id} album={a} showYear />)}</div>
+        ) : detail.albums.length > 0 ? (
+          <>
+            <p className="page-sub" style={{ marginTop: -6 }}>No studio albums found in MusicBrainz, so these are the releases Deezer lists.</p>
+            <div className="grid">{detail.albums.map((a) => <AlbumTile key={a.id} album={a} showYear />)}</div>
+          </>
+        ) : (
+          <Empty>Nothing to show here. You may already own every album we know of by {artist.name}.</Empty>
+        )}
       </Section>
 
-      {detail.related.length > 0 ? (
-        <Section title="Fans also like">
-          <div className="rail">{detail.related.map((a) => <ArtistTile key={a.id} artist={a} />)}</div>
+      {similarNames.length > 0 ? (
+        <Section title={`If you like ${artist.name}…`} hint="Similar artists and their albums">
+          {similarNames.map((name) => (
+            <SimilarRow key={name} name={name} busyId={resolving} onOpen={(x) => void open(x)} onArtist={(n) => void openArtist(n)} />
+          ))}
         </Section>
       ) : null}
+
+      {drawerNode}
     </>
   );
 }

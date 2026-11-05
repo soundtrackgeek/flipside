@@ -21,7 +21,7 @@ const MISSING_TTL_DAYS: i64 = 14;
 
 /// Two titles are "the same album" when their edition-free keys match or one is a prefix of the other
 /// (Discogs and MusicBrainz differ on subtitles and "Vol." suffixes).
-fn titles_match(found: &str, wanted: &str) -> bool {
+pub(crate) fn titles_match(found: &str, wanted: &str) -> bool {
     let (a, b) = (edition_title_key(found), edition_title_key(wanted));
     if a.is_empty() || b.is_empty() {
         return false;

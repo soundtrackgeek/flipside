@@ -2,6 +2,19 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-11-05
+
+### Added
+- **New artist page** in two sections:
+  - **Albums by <artist>**: only that artist's own studio albums (from MusicBrainz, local data first), each with its original release year and cover. Falls back to Deezer's list only when MusicBrainz knows nothing about the artist.
+  - **If you like <artist>…**: up to eight similar artists (Last.fm, or Deezer's related artists), each with a row of their own studio albums. Albums you already own stay hidden.
+- **Wikipedia biography** on artist pages (checked to be about a musician), with a "Read more on Wikipedia" link; Last.fm's blurb is the fallback.
+- **Original release year** on every album tile and on album pages. Deezer only knows the date of the release it serves (often a re-release, e.g. 2008 for a 1972 album) and gives search results no date at all, so the year now comes from MusicBrainz, looked up as tiles scroll into view and cached.
+
+### Changed
+- Clicking an artist name on a For you tile now opens that artist's page instead of running a search.
+- "Best of", "Greatest Hits", anthology and similar titles are dropped from the studio-album lists, since MusicBrainz often leaves such records untagged.
+
 ## [0.6.0] - 2026-11-05
 
 ### Added
