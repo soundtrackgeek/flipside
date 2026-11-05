@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-11-05
+
+### Added
+- **Re-download** button on finished Deezer and Usenet rows in Downloads, for when you deleted an album and want it again. Usenet transfers now remember their original request (downloads made before this version cannot be repeated). Deezer re-runs skip the duplicate check.
+
 ## [0.7.0] - 2026-11-05
 
 ### Added

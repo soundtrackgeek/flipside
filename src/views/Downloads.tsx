@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { FolderOpen, Pause, Play, Trash2, X, Disc3, Download } from "lucide-react";
+import { FolderOpen, Pause, Play, RotateCcw, Trash2, X, Disc3, Download } from "lucide-react";
 import { commands } from "../bindings";
 import type { TransferSnapshot, UsenetTransfer } from "../bindings";
 import { useApp, type DeemixJob } from "../store";
@@ -16,7 +16,7 @@ function Thumb({ src }: { src?: string }) {
 }
 
 function DeemixRow({ job }: { job: DeemixJob }) {
-  const { toast } = useApp();
+  const { toast, startDeemix } = useApp();
   const pct = job.total > 0 ? Math.round((job.completed / job.total) * 100) : null;
   return (
     <div className="dl-row">
@@ -30,15 +30,20 @@ function DeemixRow({ job }: { job: DeemixJob }) {
           <span className={`chip ${job.status === "done" ? "good" : "bad"}`}>{job.status === "done" ? "Completed" : "Failed"}</span>
         )}
       </div>
-      {job.destination ? (
-        <button className="btn small" onClick={() => reveal(job.destination!).catch((e) => toast("error", errorMessage(e)))}><FolderOpen size={14} /> Show</button>
-      ) : <span />}
+      <div style={{ display: "flex", gap: 6 }}>
+        {job.status !== "running" ? (
+          <button className="btn small" title="Download this album again" onClick={() => void startDeemix(job.album, true)}><RotateCcw size={14} /> Re-download</button>
+        ) : null}
+        {job.destination ? (
+          <button className="btn small" onClick={() => reveal(job.destination!).catch((e) => toast("error", errorMessage(e)))}><FolderOpen size={14} /> Show</button>
+        ) : null}
+      </div>
     </div>
   );
 }
 
 function UsenetRow({ t }: { t: UsenetTransfer }) {
-  const { toast } = useApp();
+  const { toast, setUsenet } = useApp();
   const finished = t.status === "completed" || t.status === "failed";
   return (
     <div className="dl-row">
@@ -52,9 +57,15 @@ function UsenetRow({ t }: { t: UsenetTransfer }) {
           <div className="progress"><i style={{ width: `${Math.max(2, t.progressPercent)}%` }} /></div>
         )}
       </div>
-      {t.destinationPath ? (
-        <button className="btn small" onClick={() => reveal(t.destinationPath!).catch((e) => toast("error", errorMessage(e)))}><FolderOpen size={14} /> Show</button>
-      ) : <span />}
+      <div style={{ display: "flex", gap: 6 }}>
+        {finished ? (
+          <button className="btn small" title="Download this release again"
+            onClick={() => commands.usenetRetryDownload(t.id).then(setUsenet).catch((e) => toast("error", errorMessage(e)))}><RotateCcw size={14} /> Re-download</button>
+        ) : null}
+        {t.destinationPath ? (
+          <button className="btn small" onClick={() => reveal(t.destinationPath!).catch((e) => toast("error", errorMessage(e)))}><FolderOpen size={14} /> Show</button>
+        ) : null}
+      </div>
     </div>
   );
 }

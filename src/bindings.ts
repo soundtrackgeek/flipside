@@ -61,6 +61,7 @@ export const commands = {
 	usenetSearch: (request: UsenetSearchRequest) => __TAURI_INVOKE<UsenetSearchResponse>("usenet_search", { request }),
 	usenetTransfersSnapshot: () => __TAURI_INVOKE<UsenetTransferQueue>("usenet_transfers_snapshot"),
 	usenetEnqueueDownload: (request: UsenetDownloadRequest) => __TAURI_INVOKE<UsenetTransferQueue>("usenet_enqueue_download", { request }),
+	usenetRetryDownload: (id: string) => __TAURI_INVOKE<UsenetTransferQueue>("usenet_retry_download", { id }),
 	usenetClearCompleted: () => __TAURI_INVOKE<UsenetTransferQueue>("usenet_clear_completed"),
 	localSharesSnapshot: () => __TAURI_INVOKE<LocalSharesSnapshot>("local_shares_snapshot"),
 	localSharesAdd: (path: string) => __TAURI_INVOKE<LocalSharesSnapshot>("local_shares_add", { path }),
@@ -784,6 +785,10 @@ export type UsenetTransfer = {
 	destinationPath: string | null,
 	error: string | null,
 	releaseGroupId: string | null,
+	/**
+	 * The original request, kept so a finished download can be started again.
+	 */
+	request?: UsenetDownloadRequest | null,
 	createdAt: string,
 	updatedAt: string,
 };

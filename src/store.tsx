@@ -38,6 +38,7 @@ export interface DeemixJob {
   title: string;
   artist: string;
   cover: string;
+  album: AlbumCard;
   phase: string;
   message: string;
   completed: number;
@@ -118,6 +119,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         title: album.title,
         artist: album.artist,
         cover: album.cover,
+        album,
         phase: "metadata",
         message: "Starting…",
         completed: 0,

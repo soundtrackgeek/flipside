@@ -141,7 +141,7 @@ pub struct UsenetSearchResponse {
     pub searched_at: String,
 }
 
-#[derive(Clone, Debug, Deserialize, specta::Type)]
+#[derive(Clone, Debug, Deserialize, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct UsenetDownloadRequest {
     pub guid: String,
@@ -183,6 +183,9 @@ pub struct UsenetTransfer {
     pub destination_path: Option<String>,
     pub error: Option<String>,
     pub release_group_id: Option<String>,
+    /// The original request, kept so a finished download can be started again.
+    #[serde(default)]
+    pub request: Option<UsenetDownloadRequest>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -498,6 +501,7 @@ impl UsenetManager {
                 destination_path: None,
                 error: None,
                 release_group_id: request.release_group_id.clone(),
+                request: Some(request.clone()),
                 created_at: now.clone(),
                 updated_at: now,
             });
@@ -522,6 +526,17 @@ impl UsenetManager {
             bail!("Could not start the Usenet download worker: {error}");
         }
         Ok(self.snapshot())
+    }
+
+    fn retry(&self, id: &str) -> Result<UsenetTransferQueue> {
+        let request = self
+            .snapshot()
+            .transfers
+            .into_iter()
+            .find(|transfer| transfer.id == id)
+            .and_then(|transfer| transfer.request)
+            .ok_or_else(|| anyhow!("This download was started by an older version and cannot be repeated; fetch the album again from its page."))?;
+        self.enqueue(request)
     }
 
     fn clear_completed(&self) -> Result<UsenetTransferQueue> {
@@ -1087,6 +1102,15 @@ pub async fn usenet_enqueue_download(
     request: UsenetDownloadRequest,
 ) -> Result<UsenetTransferQueue, String> {
     manager.enqueue(request).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn usenet_retry_download(
+    manager: State<'_, UsenetManager>,
+    id: String,
+) -> Result<UsenetTransferQueue, String> {
+    manager.retry(&id).map_err(|error| error.to_string())
 }
 
 #[tauri::command]

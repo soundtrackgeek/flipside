@@ -69,6 +69,7 @@ fn builder() -> Builder<Wry> {
         usenet::usenet_transfers_snapshot,
         usenet::usenet_enqueue_download,
         usenet::usenet_clear_completed,
+        usenet::usenet_retry_download,
         soulseek::local_shares_snapshot,
         soulseek::local_shares_add,
         soulseek::local_shares_remove,
