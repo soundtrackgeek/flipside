@@ -1,0 +1,66 @@
+[package]
+name = "flipside"
+version = "0.1.0"
+description = "Flipside — a visual store for music, with Usenet, Deezer and Soulseek downloads"
+authors = ["Jørn Tillnes"]
+edition = "2021"
+
+[lib]
+name = "flipside_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.2.0", features = [] }
+
+[dependencies]
+anyhow = "1.0"
+base64 = "0.22"
+blowfish = "0.9"
+cbc = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+cookie = "0.18"
+cookie_store = "0.21"
+crc32fast = "1.4"
+dotenvy = "0.15"
+flate2 = "1"
+hex = "0.4"
+id3 = "1"
+keyring = { version = "4.1.5", default-features = false, features = ["v1", "windows-native-keyring-store"] }
+md-5 = "0.10"
+md5-legacy = { package = "md5", version = "0.8" }
+metaflac = "0.2.8"
+native-tls = "0.2"
+percent-encoding = "2"
+quick-xml = { version = "0.38", features = ["serialize"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+symphonia = { version = "0.6", features = ["all"] }
+tauri = { version = "2.5.0", features = ["tray-icon"] }
+tauri-plugin-dialog = "2.5.0"
+tauri-plugin-opener = "2.5.4"
+tauri-plugin-process = "2.3.1"
+tauri-plugin-updater = "2.10.1"
+tauri-plugin-window-state = "2.4.1"
+tempfile = "3"
+thiserror = "2"
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt", "sync", "time"] }
+unicode-normalization = "0.1"
+ureq = { version = "2.12", features = ["cookies", "json"] }
+url = "2"
+zeroize = "1.8"
+half = "2"
+specta = { version = "=2.0.0-rc.25", features = ["derive", "serde_json", "chrono"] }
+specta-typescript = "=0.0.12"
+tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
+csv = "1.3"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = 3
+strip = true

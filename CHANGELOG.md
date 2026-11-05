@@ -1,0 +1,18 @@
+# Changelog
+
+All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
+
+## [0.1.0] - 2026-11-05
+
+### Added
+- First release of Flipside, a Tauri 2 + Rust + React desktop app: a visual, snappy music store.
+- Discover page with a featured album, Deezer editor's picks, genre browsing, the current album chart and popular artists.
+- Search across albums, artists and tracks, plus album pages (track list, label, tags) and artist pages (discography filter, popular tracks, related artists, Fanart.tv backdrops, Last.fm bios).
+- "Get this album" drawer with three download providers, ported from Music Library's Wish List:
+  - **Deezer (Deemix)** — direct download with tagging, quality and folder-layout settings, and duplicate detection.
+  - **Usenet** — Prowlarr search plus a built-in NZB downloader (NNTP, PAR2 repair, extraction).
+  - **Soulseek** — native protocol client with live, streaming search results and release-folder downloads.
+- Downloads page that merges all three providers with progress, pause/resume/cancel and "show in folder".
+- Settings → Providers for Deezer ARL, Prowlarr/Usenet, Soulseek and the Last.fm, Fanart.tv and Discogs keys. Secrets are stored in Windows Credential Manager; keys in a local `.env` seed it on first run.
+- Auto-update: checks GitHub releases on start and every 30 minutes, with a manual "Check for updates" button; accepting an update downloads and installs it automatically.
+- GitHub Actions release workflow that builds the Windows installer (`.exe`) and publishes it, with the updater manifest, to Releases.

@@ -1,0 +1,83 @@
+name: Release
+
+# Every push to master builds a Windows installer (.exe) and publishes it as a GitHub
+# release named after the version in src-tauri/tauri.conf.json. If that version already
+# has a release the run is a no-op, so bump the version (see AGENTS.md) to ship.
+# The same release carries latest.json, which the in-app updater reads.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Skip when this version is already released
+        id: exists
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ steps.version.outputs.tag }} is already released - nothing to build."
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.exists.outputs.released == 'false'
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.exists.outputs.released == 'false'
+
+      - uses: Swatinem/rust-cache@v2
+        if: steps.exists.outputs.released == 'false'
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        if: steps.exists.outputs.released == 'false'
+        run: npm ci
+
+      - name: Check versions agree
+        if: steps.exists.outputs.released == 'false'
+        run: npm run check:version
+
+      - name: Build and publish release
+        if: steps.exists.outputs.released == 'false'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ steps.version.outputs.tag }}
+          releaseName: Flipside ${{ steps.version.outputs.tag }}
+          releaseBody: See CHANGELOG.md for what changed in this version.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: --bundles nsis

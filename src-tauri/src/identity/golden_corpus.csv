@@ -1,0 +1,84 @@
+level,left,right,relation,note
+display,  Sigur  Rós ,sigur rós,->,trims and collapses spaces but keeps accents
+display,KISS,Kiss,=,
+display,Björk,Bjork,!=,accents are part of the display key
+artist,Jay‐Z,Jay-Z,=,U+2010 hyphen
+artist,Jay–Z,jay-z,->,en dash
+artist,Jay—Z,Jay−Z,=,em dash and minus sign
+artist,,unknown,->,empty names group as unknown
+artist,   ,unknown,->,
+artist,Björk,BJÖRK,=,
+artist,Björk,Bjork,!=,the catalog key keeps accents
+artist,Hall & Oates,Hall and Oates,!=,use loose_key for cross-source matching
+artist,Sigur Rós,sigur rós,->,
+strict,Song’s,Song's,=,typographic apostrophe
+strict,Ｂｊöｒｋ,Björk,=,fullwidth letters via NFKC
+strict,Sabotage—Live,sabotage-live,->,
+strict,Song (Live),Song - Live,!=,punctuation stays significant
+strict,Café,Cafe,!=,accents stay significant
+loose,Hall & Oates,Hall and Oates,=,
+loose,Daryl Hall & John Oates,daryl hall and john oates,->,
+loose,Simon & Garfunkel,Simon and Garfunkel,=,
+loose,KISS,Kiss,=,
+loose,Sigur Rós,sigur ros,->,
+loose,AC/DC,ac dc,->,
+loose,AC/DC,AC-DC,=,
+loose,AC/DC,ACDC,!=,known limitation: needs an alias
+loose,P!nk,p nk,->,
+loose,P!nk,Pink,!=,known limitation: needs an alias
+loose,Beyoncé,Beyonce,=,
+loose,BEYONCÉ,beyonce,=,
+loose,Björk,Bjork,=,
+loose,Röyksopp,Royksopp,=,
+loose,Røyksopp,Royksopp,=,ø folds like ö; normalize_key missed this before 0.177.0
+loose,Røyksopp,Röyksopp,=,
+loose,Mötley Crüe,Motley Crue,=,
+loose,Åge Aleksandersen,Age Aleksandersen,=,
+loose,Bjørn Eidsvåg,bjorn eidsvag,->,
+loose,Ágætis byrjun,agaetis byrjun,->,
+loose,Straße,Strasse,=,
+loose,Guns N' Roses,Guns N’ Roses,=,
+loose,Guns N' Roses,guns n roses,->,
+loose,"Crosby, Stills, Nash & Young",crosby stills nash and young,->,
+loose,Beyoncé feat. Jay-Z,beyonce feat jay z,->,guests stay in the loose key; use credit_keys to drop them
+loose,The Beatles,Beatles,!=,leading The is handled by loose_artist_key
+loose_artist,The Beatles,Beatles,=,
+loose_artist,"Beatles, The",Beatles,!=,known limitation: trailing article
+loose_artist,Hall & Oates,Hall and Oates,=,
+loose_artist,Daryl Hall & John Oates,Daryl Hall / John Oates,=,
+loose_artist,Queen & David Bowie,Queen + David Bowie,=,
+loose_artist,The The,the,->,a band named The The keeps its name
+loose_artist,The The Beatles,the beatles,->,only one leading The is dropped; apply the level to raw names only
+loose_artist,KISS,Kiss,=,
+loose_artist,ELO,Electric Light Orchestra,!=,different names need an explicit alias
+loose_artist,Røyksopp,Röyksopp,=,
+credit,Beyoncé feat. Jay-Z,beyonce,->,
+credit,Beyoncé ft. Jay-Z,Beyoncé featuring Jay-Z,=,
+credit,Beyoncé with Jay-Z,Beyoncé feat. Jay-Z,=,
+credit,Simon & Garfunkel,simon | garfunkel,->,co-leads are kept in order
+credit,Röyksopp & Robyn,royksopp | robyn,->,
+credit,Kygo x Whitney Houston,kygo,->,
+credit,Lil Nas X,lil nas x,->,a trailing X is part of the name
+credit,Tom Petty and the Heartbreakers,tom petty | heartbreakers,->,
+credit,Mark Ronson (featuring Bruno Mars),mark ronson,->,
+credit,DAVE/ TEMS,dave | tems,->,
+chart_artist,a-ha [NO],a-ha,=,VG-lista marks Norwegian artists
+chart_artist,a-ha [no],A-HA,=,
+chart_artist,Band [UK],Band,!=,only the Norwegian marker is a chart artifact
+edition_title,OK Computer (Remastered),OK Computer,=,
+edition_title,Abbey Road (Super Deluxe Edition),Abbey Road,=,
+edition_title,Wish You Were Here [2011 Remaster],Wish You Were Here,=,
+edition_title,Stairway to Heaven - Remaster,Stairway to Heaven,=,
+edition_title,Hey Jude - Remastered 2015,Hey Jude,=,
+edition_title,Song – 2011 Remaster,song,->,en dash separator
+edition_title,Rumours (Expanded Edition),Rumours,=,
+edition_title,Unplugged in New York (25th Anniversary Edition),unplugged in new york,->,
+edition_title,Ágætis byrjun (Remastered),agaetis byrjun,->,
+edition_title,Here Comes the Sun - 2019 Mix,Here Comes the Sun,!=,a new mix is a different recording
+edition_title,Song (Live),Song,!=,live recordings are different works
+edition_title,Song (Live) [Remastered],song live,->,only the reissue decoration is removed
+edition_title,Song (Demo),Song,!=,
+edition_title,Title - Part 2,title part 2,->,a dash suffix without edition words stays
+edition_title,(Remastered),remastered,->,a title that is only a decoration keeps it
+edition_title,Edition,edition,->,
+edition_title,The Wall,Wall,!=,
