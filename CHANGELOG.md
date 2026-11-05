@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-11-05
+
+### Added
+- **Shared music** section in Settings (under Soulseek): add, enable/disable, remove and rescan shared folders, set upload slots, and see live upload activity. Many Soulseek users only serve people who share something back.
+
 ## [0.2.0] - 2026-11-05
 
 ### Added

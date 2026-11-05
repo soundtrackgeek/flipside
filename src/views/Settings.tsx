@@ -7,6 +7,7 @@ import type {
   AppSettings, ConnectionBootstrap, ConnectionProfile, DeemixCredentialStatus, KeyStatus, UsenetBootstrap, UsenetProfile,
 } from "../bindings";
 import { useApp } from "../store";
+import SharingPanel from "../components/SharingPanel";
 import { errorMessage } from "../lib/format";
 
 function Panel({ icon, title, desc, children }: { icon: ReactNode; title: string; desc: string; children: ReactNode }) {
@@ -325,6 +326,7 @@ export default function Settings() {
       {settings ? <DeemixPanel settings={settings} save={save} /> : null}
       <UsenetPanel />
       <SoulseekPanel />
+      <SharingPanel />
       <MetadataPanel />
     </div>
   );
