@@ -18,6 +18,7 @@ export type Route =
   | { name: "album"; id: string; get?: boolean }
   | { name: "artist"; id: string }
   | { name: "genre"; id: string; title: string }
+  | { name: "foryou" }
   | { name: "downloads" }
   | { name: "settings" };
 

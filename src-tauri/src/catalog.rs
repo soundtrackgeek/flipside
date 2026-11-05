@@ -12,7 +12,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use crate::keys;
+use crate::identity::{edition_title_key, loose_artist_key};
+use crate::{keys, library};
 
 const DEEZER: &str = "https://api.deezer.com";
 const CACHE_TTL: Duration = Duration::from_secs(600);
@@ -20,7 +21,7 @@ const CACHE_TTL: Duration = Duration::from_secs(600);
 type Cache = HashMap<String, (Instant, Value)>;
 static CACHE: Mutex<Option<Cache>> = Mutex::new(None);
 
-fn cached_get(url: &str, query: &[(&str, &str)]) -> Result<Value> {
+pub(crate) fn cached_get(url: &str, query: &[(&str, &str)]) -> Result<Value> {
     let key = format!(
         "{url}?{}",
         query.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("&")
@@ -34,7 +35,10 @@ fn cached_get(url: &str, query: &[(&str, &str)]) -> Result<Value> {
             return Ok(value);
         }
     }
-    let mut request = crate::http::get(url).timeout(Duration::from_secs(12));
+    // MusicBrainz and Discogs reject anonymous clients: always identify ourselves.
+    let mut request = crate::http::get(url)
+        .timeout(Duration::from_secs(12))
+        .set("User-Agent", crate::http::USER_AGENT);
     for (name, value) in query {
         request = request.query(name, value);
     }
@@ -240,8 +244,13 @@ fn items(v: Option<&Value>) -> &[Value] {
         .unwrap_or(&[])
 }
 
+/// Lists never show albums you already own (when "hide owned" is on).
 fn album_cards(v: Option<&Value>, fallback_artist: Option<&Value>) -> Vec<AlbumCard> {
-    items(v).iter().filter_map(|x| album_card(x, fallback_artist)).collect()
+    items(v)
+        .iter()
+        .filter_map(|x| album_card(x, fallback_artist))
+        .filter(|a| !library::should_hide(&a.artist, &a.title))
+        .collect()
 }
 
 fn artist_card(v: &Value) -> Option<ArtistCard> {
@@ -282,7 +291,11 @@ fn track_row(v: &Value) -> Option<TrackRow> {
 }
 
 fn track_rows(v: Option<&Value>) -> Vec<TrackRow> {
-    items(v).iter().filter_map(track_row).collect()
+    items(v)
+        .iter()
+        .filter_map(track_row)
+        .filter(|t| t.album_title.as_deref().is_none_or(|album| !library::should_hide(&t.artist, album)))
+        .collect()
 }
 
 fn clean_id(id: &str) -> Result<&str> {
@@ -429,6 +442,31 @@ fn strip_html(input: &str) -> String {
         }
     }
     out.replace("&quot;", "\"").replace("&amp;", "&").replace("&#39;", "'").trim().to_owned()
+}
+
+pub(crate) fn lastfm_json(method: &str, params: &[(&str, &str)]) -> Option<Value> {
+    lastfm(method, params)
+}
+
+/// Finds the Deezer album matching a MusicBrainz/Discogs release so it can be opened and downloaded.
+pub fn resolve_album(artist: &str, title: &str) -> Result<Option<AlbumCard>> {
+    let wanted_artist = loose_artist_key(artist);
+    let wanted_title = edition_title_key(title);
+    let queries = [
+        format!("artist:\"{}\" album:\"{}\"", artist.replace('"', ""), title.replace('"', "")),
+        format!("{artist} {title}"),
+    ];
+    for query in queries {
+        let value = deezer("/search/album", &[("q", query.as_str()), ("limit", "20")])?;
+        let found = items(Some(&value))
+            .iter()
+            .filter_map(|x| album_card(x, None))
+            .find(|a| loose_artist_key(&a.artist) == wanted_artist && edition_title_key(&a.title) == wanted_title);
+        if found.is_some() {
+            return Ok(found);
+        }
+    }
+    Ok(None)
 }
 
 fn lastfm(method: &str, params: &[(&str, &str)]) -> Option<Value> {

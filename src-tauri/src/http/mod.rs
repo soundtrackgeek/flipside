@@ -9,15 +9,15 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime};
 
 pub const USER_AGENT: &str = concat!(
-    "MusicLibrary/",
+    "Flipside/",
     env!("CARGO_PKG_VERSION"),
-    " ( https://github.com/soundtrackgeek/music_backup_v5 )"
+    " ( https://github.com/soundtrackgeek/flipside )"
 );
 
 pub const BROWSER_USER_AGENT: &str = concat!(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 MusicLibrary/",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Flipside/",
     env!("CARGO_PKG_VERSION"),
-    " ( https://github.com/soundtrackgeek/music_backup_v5 )"
+    " ( https://github.com/soundtrackgeek/flipside )"
 );
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);

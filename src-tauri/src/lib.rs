@@ -3,12 +3,14 @@
 
 mod catalog;
 mod db;
+mod discovery;
 mod deemix;
 mod deemix_download;
 mod events;
 mod http;
 mod identity;
 mod keys;
+mod library;
 mod soulseek;
 mod updater;
 mod usenet;
@@ -85,6 +87,56 @@ async fn catalog_album_enrichment(
     blocking(move || catalog::album_enrichment(&artist, &title)).await
 }
 
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn catalog_resolve_album(artist: String, title: String) -> Result<Option<catalog::AlbumCard>, String> {
+    blocking(move || catalog::resolve_album(&artist, &title)).await
+}
+
+// --- For you: library-aware discovery -------------------------------------------
+
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn discovery_query(query: discovery::DiscoveryQuery) -> Result<discovery::DiscoveryPage, String> {
+    blocking(move || Ok(discovery::query(&query))).await
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn discovery_status() -> Result<discovery::DiscoveryStatus, String> {
+    blocking(|| Ok(discovery::status())).await
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn discovery_refresh() -> Result<bool, String> {
+    blocking(|| Ok(discovery::start_refresh())).await
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn library_status() -> Result<library::LibraryStatus, String> {
+    blocking(|| Ok(library::status())).await
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn library_reload(app: AppHandle) -> Result<library::LibraryStatus, String> {
+    blocking(move || {
+        let settings = db::settings_for_app(&app)?;
+        library::configure(&app, &settings);
+        library::reload_in_background();
+        Ok(library::status())
+    })
+    .await
+}
+
 // --- Settings and provider keys -------------------------------------------------
 
 #[cfg(not(test))]
@@ -98,7 +150,12 @@ async fn get_settings(app: AppHandle) -> Result<db::AppSettings, String> {
 #[tauri::command]
 #[specta::specta]
 async fn save_settings(app: AppHandle, settings: db::AppSettings) -> Result<db::AppSettings, String> {
-    blocking(move || db::save_settings_for_app(&app, settings)).await
+    blocking(move || {
+        let saved = db::save_settings_for_app(&app, settings)?;
+        library::configure(&app, &saved);
+        Ok(saved)
+    })
+    .await
 }
 
 #[cfg(not(test))]
@@ -266,6 +323,14 @@ pub fn run() {
                 &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/bindings.ts"),
             );
             keys::seed_from_env();
+            // Creates the database, then loads the library index and the discovery crawl in the background.
+            db::open(app.handle())?;
+            discovery::init(app.handle());
+            library::configure(app.handle(), &db::settings_for_app(app.handle())?);
+            std::thread::spawn(|| {
+                std::thread::sleep(Duration::from_secs(20));
+                discovery::refresh_if_stale();
+            });
             app.manage(updater::UpdateState::default());
             app.manage(soulseek::initialize(app.handle())?);
             app.manage(usenet::initialize(app.handle())?);

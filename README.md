@@ -7,6 +7,9 @@ and React.
 ## Features
 
 - **Discover** — featured album, editor's picks, genres, the album chart and popular artists.
+- **For you** — studio albums you don't own: gaps in artists you collect, plus albums by similar artists you don't have
+  yet (Last.fm → MusicBrainz/Discogs). Filter by decade, year, genre or text. Uses your Music Library databases
+  (read-only) to hide everything you already own; only studio albums are listed (no live, compilations, EPs, singles).
 - **Search** albums, artists and tracks; open rich album and artist pages (track lists, discographies, related
   artists, bios, tags, backdrops).
 - **Auto-get** — one click: tries Deezer, then Usenet, then Soulseek, and stops at the first that delivers.

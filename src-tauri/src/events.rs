@@ -2,6 +2,7 @@
 
 use crate::{
     deemix_download::DeemixAlbumDownloadProgress,
+    discovery::DiscoveryProgress,
     soulseek::{
         ConnectionSnapshot, LocalSharesSnapshot, SearchEvent, TransferQueueSnapshot,
         UploadQueueSnapshot,
@@ -32,6 +33,7 @@ wire_events! {
     AppUpdateChecked(UpdateSnapshot) = "app-update-checked";
     AppUpdateInstallProgress(InstallProgress) = "app-update-install-progress";
     DeemixDownloadProgress(DeemixAlbumDownloadProgress) = "deemix-download-progress";
+    DiscoveryProgressChanged(DiscoveryProgress) = "flipside://discovery-progress";
     UsenetTransfersChanged(UsenetTransferQueue) = "flipside://usenet-transfers";
     SoulseekConnectionChanged(ConnectionSnapshot) = "flipside://soulseek-connection";
     SoulseekTransfersChanged(TransferQueueSnapshot) = "flipside://soulseek-transfers";

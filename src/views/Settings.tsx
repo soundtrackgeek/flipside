@@ -8,6 +8,7 @@ import type {
 } from "../bindings";
 import { useApp } from "../store";
 import SharingPanel from "../components/SharingPanel";
+import LibraryPanel from "../components/LibraryPanel";
 import { errorMessage } from "../lib/format";
 
 function Panel({ icon, title, desc, children }: { icon: ReactNode; title: string; desc: string; children: ReactNode }) {
@@ -323,6 +324,7 @@ export default function Settings() {
       <h1 className="page-title">Settings</h1>
       <p className="page-sub">Providers, folders and updates. Secrets are kept in Windows Credential Manager.</p>
       {settings ? <UpdatesPanel settings={settings} save={save} /> : null}
+      {settings ? <LibraryPanel settings={settings} save={save} /> : null}
       {settings ? <DeemixPanel settings={settings} save={save} /> : null}
       <UsenetPanel />
       <SoulseekPanel />

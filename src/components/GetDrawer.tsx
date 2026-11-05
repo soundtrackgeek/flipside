@@ -58,6 +58,13 @@ export default function GetDrawer({
 /* ------------------------------------------------------------------ Deemix */
 
 function DeemixTab({ album }: { album: AlbumCard }) {
+  if (!album.id) {
+    return <div className="empty">This album wasn't found on Deezer. Try Usenet or Soulseek.</div>;
+  }
+  return <DeemixTabInner album={album} />;
+}
+
+function DeemixTabInner({ album }: { album: AlbumCard }) {
   const { deemixJobs, startDeemix, go } = useApp();
   const [pre, setPre] = useState<DeemixAlbumDownloadPreflight | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -400,8 +407,10 @@ function AutoTab({ album, autoStart }: { album: AlbumCard; autoStart: boolean })
     // 1. Deezer
     patch("deemix", "running", "Checking your Deezer account...");
     try {
-      const cred = await commands.getDeemixCredentialStatus();
-      if (!cred.configured) {
+      const cred = album.id ? await commands.getDeemixCredentialStatus() : null;
+      if (!album.id) {
+        patch("deemix", "skipped", "Not available on Deezer");
+      } else if (!cred?.configured) {
         patch("deemix", "skipped", "No Deezer ARL set");
       } else {
         const pre = await commands.preflightDeemixAlbumDownload({ albumId: album.id, artist: album.artist, album: album.title, year: album.year });

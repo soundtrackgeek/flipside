@@ -301,3 +301,25 @@ a { color: inherit; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 @keyframes indet { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
 @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.001s !important; transition-duration: 0.001s !important; } }
+
+/* ---------- for you: filters ---------- */
+.filters { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+.seg { display: inline-flex; padding: 4px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); align-self: flex-start; flex-wrap: wrap; }
+.seg button { padding: 7px 16px; border-radius: 18px; font-weight: 600; font-size: 13px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
+.seg button span { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.seg button:hover { color: var(--text); }
+.seg button.active { background: var(--surface-3); color: var(--text); }
+.seg button.active span { color: #ffb1bb; }
+.filter-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.searchbox.small { flex: 0 1 260px; }
+.searchbox.small input { height: 34px; padding-right: 12px; font-size: 13px; }
+.mini { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.mini input, .mini select { height: 34px; border-radius: 10px; padding: 0 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--line); outline: none; width: 78px; user-select: text; }
+.mini select { width: auto; cursor: pointer; }
+.mini input:focus, .mini select:focus { border-color: rgba(139, 108, 255, 0.7); }
+.chips-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip.pick { cursor: pointer; transition: background 0.15s, color 0.15s; }
+.chip.pick:hover { background: var(--surface-3); color: var(--text); }
+.chip.pick.accent:hover { background: rgba(255, 93, 115, 0.26); color: #ffb1bb; }
+
+.field label.switch { justify-content: flex-start; }

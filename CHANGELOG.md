@@ -2,6 +2,22 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-11-05
+
+### Added
+- **For you** page: studio albums you don't own yet, with decade, year range, genre, text and sort filters.
+  - *From artists you own*: gaps in your collection, computed from your Music Library database plus the MusicBrainz cache and the newer overlay (no network needed).
+  - *From similar artists*: artists Last.fm says are similar to yours but that you don't have, with their albums found through MusicBrainz (Discogs as a fallback) by a background crawl that runs at launch when the data is a week old, or on "Find more". New albums appear as they are found.
+  - **Studio albums only**: MusicBrainz primary type Album with no secondary types and at least one official release. Live albums, compilations, soundtracks, remixes, EPs, singles and bootlegs are excluded. Anything you own is excluded, as are releases marked "not in scope" in Music Library.
+  - "Best match" sorting spreads results across artists instead of listing one prolific artist first.
+  - Opening an album finds it on Deezer; if it isn't there, the Get drawer still offers Usenet and Soulseek.
+- Settings → **Your library**: locations of the Music Library, MusicBrainz cache and overlay databases (auto-detected from Music Library by default), load status, and reload. All databases are opened read-only.
+- **Hide albums I already own** (on by default): albums in your library no longer appear anywhere in Flipside (Discover, search, artist pages, genres).
+
+### Fixed
+- Discogs and MusicBrainz requests now identify Flipside with a proper User-Agent (Discogs refuses anonymous clients).
+- Settings switch labels are left-aligned.
+
 ## [0.3.0] - 2026-11-05
 
 ### Added

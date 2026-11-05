@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Compass, Download, Loader2, Search as SearchIcon, Settings as SettingsIcon, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Compass, Download, Gem, Loader2, Search as SearchIcon, Settings as SettingsIcon, Sparkles, X } from "lucide-react";
 import { AppProvider, useApp, type Route } from "./store";
 import Home from "./views/Home";
 import { Genre, Search } from "./views/Browse";
 import Album from "./views/Album";
 import Artist from "./views/Artist";
 import Downloads from "./views/Downloads";
+import ForYou from "./views/ForYou";
 import Settings from "./views/Settings";
 
 function NavButton({ route, label, icon, active, badge }: { route: Route; label: string; icon: React.ReactNode; active: boolean; badge?: number }) {
@@ -76,6 +77,7 @@ function Shell() {
       <nav className="sidebar">
         <div className="brand" title="Flipside">F</div>
         <NavButton route={{ name: "home" }} label="Discover" icon={<Compass size={20} />} active={route.name === "home" || route.name === "genre"} />
+        <NavButton route={{ name: "foryou" }} label="For you" icon={<Gem size={20} />} active={route.name === "foryou"} />
         <NavButton route={{ name: "downloads" }} label="Downloads" icon={<Download size={20} />} active={route.name === "downloads"} badge={activeDownloads} />
         <div className="spacer" />
         <div title={`Soulseek: ${conn ?? "offline"}`} style={{ padding: 10 }}><span className={`conn-dot ${connClass}`} /></div>
@@ -108,6 +110,7 @@ function Shell() {
           {route.name === "genre" && <Genre id={route.id} title={route.title} />}
           {route.name === "album" && <Album id={route.id} openGet={route.get} />}
           {route.name === "artist" && <Artist id={route.id} />}
+          {route.name === "foryou" && <ForYou />}
           {route.name === "downloads" && <Downloads />}
           {route.name === "settings" && <Settings />}
         </div>

@@ -12,6 +12,24 @@ export const commands = {
 	catalogArtist: (id: string) => __TAURI_INVOKE<ArtistDetail>("catalog_artist", { id }),
 	catalogArtistEnrichment: (name: string) => __TAURI_INVOKE<ArtistEnrichment>("catalog_artist_enrichment", { name }),
 	catalogAlbumEnrichment: (artist: string, title: string) => __TAURI_INVOKE<AlbumEnrichment>("catalog_album_enrichment", { artist, title }),
+	catalogResolveAlbum: (artist: string, title: string) => __TAURI_INVOKE<{
+	id: string,
+	title: string,
+	artist: string,
+	artistId: string | null,
+	cover: string,
+	coverLarge: string,
+	year: number | null,
+	releaseDate: string | null,
+	kind: string,
+	trackCount: number | null,
+	explicit: boolean,
+} | null>("catalog_resolve_album", { artist, title }),
+	discoveryQuery: (query: DiscoveryQuery) => __TAURI_INVOKE<DiscoveryPage>("discovery_query", { query }),
+	discoveryStatus: () => __TAURI_INVOKE<DiscoveryStatus>("discovery_status"),
+	discoveryRefresh: () => __TAURI_INVOKE<boolean>("discovery_refresh"),
+	libraryStatus: () => __TAURI_INVOKE<LibraryStatus>("library_status"),
+	libraryReload: () => __TAURI_INVOKE<LibraryStatus>("library_reload"),
 	getSettings: () => __TAURI_INVOKE<AppSettings>("get_settings"),
 	saveSettings: (settings: AppSettings) => __TAURI_INVOKE<AppSettings>("save_settings", { settings }),
 	keysStatus: () => __TAURI_INVOKE<KeyStatus[]>("keys_status"),
@@ -78,6 +96,7 @@ export const events = {
 	appUpdateChecked: makeEvent<AppUpdateChecked>("app-update-checked"),
 	appUpdateInstallProgress: makeEvent<AppUpdateInstallProgress>("app-update-install-progress"),
 	deemixDownloadProgress: makeEvent<DeemixDownloadProgress>("deemix-download-progress"),
+	flipsideDiscoveryProgress: makeEvent<DiscoveryProgressChanged>("flipside://discovery-progress"),
 	flipsideSoulseekConnection: makeEvent<SoulseekConnectionChanged>("flipside://soulseek-connection"),
 	flipsideSoulseekLocalShares: makeEvent<SoulseekLocalSharesChanged>("flipside://soulseek-local-shares"),
 	flipsideSoulseekSearch: makeEvent<SoulseekSearchProgress>("flipside://soulseek-search"),
@@ -127,6 +146,14 @@ export type AppSettings = {
 	deemixDownloadFallback?: boolean,
 	deemixDownloadOrganization?: string,
 	autoUpdateCheck?: boolean,
+	/**  Music Library database (what you own). Empty means "auto-detect". */
+	libraryDbPath?: string,
+	/**  MusicBrainz cache database. Empty means "use the path Music Library is configured with". */
+	musicbrainzCachePath?: string,
+	/**  MusicBrainz overlay (newer data synced through OneDrive). Empty means "use Music Library's". */
+	musicbrainzOverlayPath?: string,
+	/**  Never show albums that are already in the library. */
+	hideOwned?: boolean,
 };
 
 /**  Serializes exactly as its payload. */
@@ -304,6 +331,60 @@ export type DiagnosticEntry = {
 	message: string,
 };
 
+export type DiscoveryAlbum = {
+	id: string,
+	title: string,
+	artist: string,
+	artistMbid: string | null,
+	year: number | null,
+	genres: string[],
+	similar: boolean,
+	because: string[],
+	cover: string,
+};
+
+export type DiscoveryPage = {
+	total: number,
+	items: DiscoveryAlbum[],
+	decades: Facet[],
+	genres: Facet[],
+	missingTotal: number,
+	similarTotal: number,
+};
+
+export type DiscoveryProgress = {
+	running: boolean,
+	stage: string,
+	done: number,
+	total: number,
+	message: string,
+};
+
+/**  Serializes exactly as its payload. */
+export type DiscoveryProgressChanged = DiscoveryProgress;
+
+export type DiscoveryQuery = {
+	/**  "all", "missing" (artists you own) or "similar" (artists you don't). */
+	source?: string,
+	decade?: number | null,
+	yearFrom?: number | null,
+	yearTo?: number | null,
+	genre?: string | null,
+	text?: string,
+	/**  "affinity", "newest", "oldest" or "artist". */
+	sort?: string,
+	offset?: number,
+	limit?: number,
+};
+
+export type DiscoveryStatus = {
+	progress: DiscoveryProgress,
+	library: LibraryStatus,
+	lastCrawl: string | null,
+	similarArtists: number,
+	lastfmConfigured: boolean,
+};
+
 export type DistributedSnapshot = {
 	state: DistributedState,
 	message: string,
@@ -333,6 +414,12 @@ export type EnqueueReleaseRequest = {
 	alternatives?: ReleaseAlternativeSource[],
 };
 
+export type Facet = {
+	key: string,
+	label: string,
+	count: number,
+};
+
 export type Genre = {
 	id: string,
 	name: string,
@@ -359,6 +446,19 @@ export type KeyStatus = {
 	id: string,
 	label: string,
 	configured: boolean,
+};
+
+/**  A small summary for Settings. */
+export type LibraryStatus = {
+	libraryPath: string | null,
+	musicbrainzCachePath: string | null,
+	musicbrainzOverlayPath: string | null,
+	loaded: boolean,
+	loading: boolean,
+	ownedAlbums: number,
+	ownedArtists: number,
+	missingAlbums: number,
+	error: string | null,
 };
 
 export type LocalSharesSnapshot = {

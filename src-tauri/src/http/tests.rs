@@ -25,7 +25,7 @@ fn musicbrainz_uses_the_same_client_and_versioned_user_agent() {
     assert!(std::ptr::eq(musicbrainz(), client()));
     assert!(std::ptr::eq(agent(), &musicbrainz().agent));
     assert!(USER_AGENT.contains(env!("CARGO_PKG_VERSION")));
-    assert!(USER_AGENT.contains("https://github.com/soundtrackgeek/music_backup_v5"));
+    assert!(USER_AGENT.contains("https://github.com/soundtrackgeek/flipside"));
     assert!(BROWSER_USER_AGENT.ends_with(USER_AGENT));
     assert_eq!(canonical_host("WWW.MusicBrainz.org."), "musicbrainz.org");
 }
