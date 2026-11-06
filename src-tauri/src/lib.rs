@@ -1,6 +1,7 @@
 //! Flipside: a visual store for music with Usenet, Deezer and Soulseek downloads.
 #![allow(dead_code, unused_imports)] // Provider modules are ported whole; not every API is surfaced in the UI yet.
 
+mod bridge;
 mod catalog;
 mod covers;
 mod db;
@@ -279,6 +280,29 @@ async fn preflight_deemix_album_download(
     blocking(move || deemix_download::preflight_album_for_app(&app, input)).await
 }
 
+// --- Browser extension bridge -----------------------------------------------------
+
+#[derive(Clone, Debug, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+struct BridgeInfo {
+    port: u16,
+    token: String,
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn bridge_info(app: AppHandle) -> Result<BridgeInfo, String> {
+    blocking(move || Ok(BridgeInfo { port: bridge::PORT, token: bridge::token(&app)? })).await
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn bridge_regenerate_token(app: AppHandle) -> Result<BridgeInfo, String> {
+    blocking(move || Ok(BridgeInfo { port: bridge::PORT, token: bridge::regenerate_token(&app)? })).await
+}
+
 // --- App updates -----------------------------------------------------------------
 
 #[cfg(not(test))]
@@ -376,6 +400,7 @@ pub fn run() {
             app.manage(soulseek::initialize(app.handle())?);
             app.manage(usenet::initialize(app.handle())?);
             start_update_loop(app.handle().clone());
+            bridge::start(app.handle());
             Ok(())
         })
         .invoke_handler(bindings::invoke_handler())

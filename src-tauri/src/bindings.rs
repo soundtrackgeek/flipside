@@ -18,7 +18,7 @@ use super::{
     preflight_deemix_album_download, get_app_update_status, check_app_update,
     install_app_update, catalog_resolve_album, catalog_cover, catalog_artist_albums, catalog_original_year,
     catalog_resolve_artist, discovery_query, discovery_status, discovery_refresh, discovery_stop,
-    library_status, library_reload, soulseek, usenet,
+    library_status, library_reload, bridge_info, bridge_regenerate_token, soulseek, usenet,
 };
 
 macro_rules! specta_commands {
@@ -47,6 +47,8 @@ fn builder() -> Builder<Wry> {
         discovery_stop,
         library_status,
         library_reload,
+        bridge_info,
+        bridge_regenerate_token,
         get_settings,
         save_settings,
         keys_status,

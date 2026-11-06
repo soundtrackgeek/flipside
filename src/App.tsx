@@ -8,6 +8,7 @@ import Artist from "./views/Artist";
 import Downloads from "./views/Downloads";
 import ForYou from "./views/ForYou";
 import Settings from "./views/Settings";
+import GetDrawer from "./components/GetDrawer";
 
 function NavButton({ route, label, icon, active, badge }: { route: Route; label: string; icon: React.ReactNode; active: boolean; badge?: number }) {
   const { go } = useApp();
@@ -48,7 +49,7 @@ function UpdateBanner() {
 }
 
 function Shell() {
-  const { route, go, back, canGoBack, toasts, dismissToast, activeDownloads, connection } = useApp();
+  const { route, go, back, canGoBack, toasts, dismissToast, activeDownloads, connection, extensionAlbum, clearExtensionAlbum } = useApp();
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -115,6 +116,10 @@ function Shell() {
           {route.name === "settings" && <Settings />}
         </div>
       </div>
+
+      {extensionAlbum ? (
+        <GetDrawer key={`${extensionAlbum.artist}|${extensionAlbum.title}`} album={extensionAlbum} autoStart onClose={clearExtensionAlbum} />
+      ) : null}
 
       <div className="toasts" aria-live="polite">
         {toasts.map((t) => (

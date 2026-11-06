@@ -40,6 +40,8 @@ export const commands = {
 	discoveryStop: () => __TAURI_INVOKE<null>("discovery_stop"),
 	libraryStatus: () => __TAURI_INVOKE<LibraryStatus>("library_status"),
 	libraryReload: () => __TAURI_INVOKE<LibraryStatus>("library_reload"),
+	bridgeInfo: () => __TAURI_INVOKE<BridgeInfo>("bridge_info"),
+	bridgeRegenerateToken: () => __TAURI_INVOKE<BridgeInfo>("bridge_regenerate_token"),
 	getSettings: () => __TAURI_INVOKE<AppSettings>("get_settings"),
 	saveSettings: (settings: AppSettings) => __TAURI_INVOKE<AppSettings>("save_settings", { settings }),
 	keysStatus: () => __TAURI_INVOKE<KeyStatus[]>("keys_status"),
@@ -62,8 +64,8 @@ export const commands = {
 	usenetSearch: (request: UsenetSearchRequest) => __TAURI_INVOKE<UsenetSearchResponse>("usenet_search", { request }),
 	usenetTransfersSnapshot: () => __TAURI_INVOKE<UsenetTransferQueue>("usenet_transfers_snapshot"),
 	usenetEnqueueDownload: (request: UsenetDownloadRequest) => __TAURI_INVOKE<UsenetTransferQueue>("usenet_enqueue_download", { request }),
-	usenetRetryDownload: (id: string) => __TAURI_INVOKE<UsenetTransferQueue>("usenet_retry_download", { id }),
 	usenetClearCompleted: () => __TAURI_INVOKE<UsenetTransferQueue>("usenet_clear_completed"),
+	usenetRetryDownload: (id: string) => __TAURI_INVOKE<UsenetTransferQueue>("usenet_retry_download", { id }),
 	localSharesSnapshot: () => __TAURI_INVOKE<LocalSharesSnapshot>("local_shares_snapshot"),
 	localSharesAdd: (path: string) => __TAURI_INVOKE<LocalSharesSnapshot>("local_shares_add", { path }),
 	localSharesRemove: (id: string) => __TAURI_INVOKE<LocalSharesSnapshot>("local_shares_remove", { id }),
@@ -108,6 +110,7 @@ export const events = {
 	appUpdateInstallProgress: makeEvent<AppUpdateInstallProgress>("app-update-install-progress"),
 	deemixDownloadProgress: makeEvent<DeemixDownloadProgress>("deemix-download-progress"),
 	flipsideDiscoveryProgress: makeEvent<DiscoveryProgressChanged>("flipside://discovery-progress"),
+	flipsideExtensionGet: makeEvent<ExtensionGetRequested>("flipside://extension-get"),
 	flipsideSoulseekConnection: makeEvent<SoulseekConnectionChanged>("flipside://soulseek-connection"),
 	flipsideSoulseekLocalShares: makeEvent<SoulseekLocalSharesChanged>("flipside://soulseek-local-shares"),
 	flipsideSoulseekSearch: makeEvent<SoulseekSearchProgress>("flipside://soulseek-search"),
@@ -201,6 +204,11 @@ export type ArtistEnrichment = {
 	tags: string[],
 	similar: string[],
 	listeners: number | null,
+};
+
+export type BridgeInfo = {
+	port: number,
+	token: string,
 };
 
 export type ConnectionBootstrap = {
@@ -374,14 +382,10 @@ export type DiscoveryProgress = {
 	done: number,
 	total: number,
 	message: string,
-	/**
-	 * Your artists whose similar artists are known, out of all that are worth asking about.
-	 */
+	/**  Your artists whose similar artists are known, out of all that are worth asking about. */
 	seedsDone: number,
 	seedsTotal: number,
-	/**
-	 * Similar artists whose albums have been looked up, out of all candidates found so far.
-	 */
+	/**  Similar artists whose albums have been looked up, out of all candidates found so far. */
 	artistsDone: number,
 	artistsTotal: number,
 	continuous: boolean,
@@ -442,6 +446,9 @@ export type EnqueueReleaseRequest = {
 	releaseGroupId?: string | null,
 	alternatives?: ReleaseAlternativeSource[],
 };
+
+/**  Serializes exactly as its payload. */
+export type ExtensionGetRequested = AlbumCard;
 
 export type Facet = {
 	key: string,
@@ -797,9 +804,7 @@ export type UsenetTransfer = {
 	destinationPath: string | null,
 	error: string | null,
 	releaseGroupId: string | null,
-	/**
-	 * The original request, kept so a finished download can be started again.
-	 */
+	/**  The original request, kept so a finished download can be started again. */
 	request?: UsenetDownloadRequest | null,
 	createdAt: string,
 	updatedAt: string,

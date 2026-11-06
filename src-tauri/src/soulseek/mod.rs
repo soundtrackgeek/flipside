@@ -27,7 +27,7 @@ use tauri::{AppHandle, Manager, State};
 pub(crate) use downloads::TransferQueueSnapshot;
 pub(crate) use local_shares::LocalSharesSnapshot;
 pub(crate) use search::SearchEvent;
-pub(crate) use service::ConnectionSnapshot;
+pub(crate) use service::{ConnectionManager as BridgeConnectionManager, ConnectionSnapshot, ConnectionState as BridgeConnectionState};
 pub(crate) use uploads::UploadQueueSnapshot;
 
 pub fn initialize(app: &AppHandle) -> Result<ConnectionManager, String> {

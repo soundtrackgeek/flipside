@@ -1,0 +1,7 @@
+{
+  "name": "flipside-extension-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test" },
+  "devDependencies": { "linkedom": "^0.18.5" }
+}

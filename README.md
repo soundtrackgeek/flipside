@@ -18,6 +18,10 @@ and React.
   - **Deezer** — direct, tagged downloads through your Deezer account (MP3 128/320 or FLAC).
   - **Usenet** — Prowlarr finds NZBs; Flipside downloads, repairs (PAR2) and extracts them itself.
   - **Soulseek** — a native protocol client with live results; downloads whole release folders.
+- **Browser extension** — `extension/` holds an Edge/Chrome extension that, on Discogs, Rate Your Music, Album Of The
+  Year, AllMusic and YouTube, shows whether the album on the page is available via Deezer, Usenet and Soulseek and
+  sends it to Auto-get with one click (or automatically, if you enable it). Load it unpacked from `edge://extensions`,
+  then paste the token from **Settings → Browser extension**. See `extension/README.md`.
 - **Shared music** — in Settings, choose folders to share on Soulseek (many users only serve people who share).
 - **Downloads** page combining all three, with progress, pause/resume/cancel and *show in folder*.
 - **Auto-update** — checks GitHub on launch and every 30 minutes (or on demand in Settings); accept the update

@@ -2,6 +2,12 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-11-06
+
+### Added
+- Browser extension ("Flipside Connector", in `extension/`) for Edge and Chrome. On Discogs, Rate Your Music, Album Of The Year, AllMusic and YouTube it shows a small Flipside pill with Deezer / Usenet / Soulseek availability for the album on the page, and a **Get it** button that starts Auto-get in Flipside. An opt-in setting starts Auto-get by itself when the album is found.
+- Local bridge in the app (`127.0.0.1:47615`) that the extension talks to. Requests need a pairing token (**Settings → Browser extension**), a loopback `Host` and an extension `Origin`, so ordinary web pages cannot use it.
+
 ## [0.10.3] - 2026-11-06
 
 ### Fixed

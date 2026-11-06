@@ -1,6 +1,7 @@
 //! Typed events the backend pushes to the UI (exported to `src/bindings.ts`).
 
 use crate::{
+    catalog::AlbumCard,
     deemix_download::DeemixAlbumDownloadProgress,
     discovery::DiscoveryProgress,
     soulseek::{
@@ -40,4 +41,5 @@ wire_events! {
     SoulseekLocalSharesChanged(LocalSharesSnapshot) = "flipside://soulseek-local-shares";
     SoulseekUploadsChanged(UploadQueueSnapshot) = "flipside://soulseek-uploads";
     SoulseekSearchProgress(SearchEvent) = "flipside://soulseek-search";
+    ExtensionGetRequested(AlbumCard) = "flipside://extension-get";
 }

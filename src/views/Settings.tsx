@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
-import { Check, FolderOpen, KeyRound, Loader2, Newspaper, RefreshCw, Share2, Sparkles, Zap } from "lucide-react";
+import { Check, Copy, FolderOpen, KeyRound, Loader2, Newspaper, Puzzle, RefreshCw, Share2, Sparkles, Zap } from "lucide-react";
 import { commands } from "../bindings";
 import type {
   AppSettings, ConnectionBootstrap, ConnectionProfile, DeemixCredentialStatus, KeyStatus, UsenetBootstrap, UsenetProfile,
@@ -310,6 +310,30 @@ function MetadataPanel() {
 
 /* --------------------------------------------------------------------- page */
 
+function ExtensionPanel() {
+  const { toast } = useApp();
+  const [info, setInfo] = useState<{ port: number; token: string } | null>(null);
+  useEffect(() => { void commands.bridgeInfo().then(setInfo).catch((e) => toast("error", errorMessage(e))); }, [toast]);
+  const copy = async () => {
+    if (!info) return;
+    try { await navigator.clipboard.writeText(info.token); toast("info", "Token copied"); } catch (e) { toast("error", errorMessage(e)); }
+  };
+  const regenerate = async () => {
+    try { setInfo(await commands.bridgeRegenerateToken()); toast("info", "New token created. Paste it into the extension again."); } catch (e) { toast("error", errorMessage(e)); }
+  };
+  return (
+    <Panel icon={<Puzzle size={18} />} title="Browser extension" desc={`The Edge/Chrome extension talks to Flipside on 127.0.0.1:${info?.port ?? 47615}. Paste this token into the extension's options to pair it. Load the extension from the extension folder (see README).`}>
+      <Field label="Pairing token" wide>
+        <div className="row">
+          <input type="password" readOnly value={info?.token ?? ""} aria-label="Pairing token" />
+          <button className="btn" onClick={() => void copy()} disabled={!info}><Copy size={15} /> Copy</button>
+          <button className="btn" onClick={() => void regenerate()} disabled={!info}><RefreshCw size={15} /> New token</button>
+        </div>
+      </Field>
+    </Panel>
+  );
+}
+
 export default function Settings() {
   const { toast } = useApp();
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -329,6 +353,7 @@ export default function Settings() {
       <UsenetPanel />
       <SoulseekPanel />
       <SharingPanel />
+      <ExtensionPanel />
       <MetadataPanel />
     </div>
   );

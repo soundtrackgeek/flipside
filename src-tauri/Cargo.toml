@@ -1,6 +1,6 @@
 [package]
 name = "flipside"
-version = "0.10.3"
+version = "0.11.0"
 description = "Flipside — a visual store for music, with Usenet, Deezer and Soulseek downloads"
 authors = ["Jørn Tillnes"]
 edition = "2021"

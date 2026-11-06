@@ -386,7 +386,7 @@ impl UsenetManager {
         })
     }
 
-    fn search(&self, request: UsenetSearchRequest) -> Result<UsenetSearchResponse> {
+    pub fn search(&self, request: UsenetSearchRequest) -> Result<UsenetSearchResponse> {
         let profile = self.profile()?;
         profile.validate()?;
         let (api_key, _) = self.credentials(&profile)?;

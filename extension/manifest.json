@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Flipside Connector",
+  "version": "0.1.0",
+  "description": "Checks whether Flipside can get the album you are looking at (Deezer, Usenet, Soulseek) and sends it to Flipside.",
+  "permissions": ["storage"],
+  "host_permissions": ["http://127.0.0.1:47615/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Flipside Connector settings" },
+  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.discogs.com/*",
+        "https://rateyourmusic.com/*",
+        "https://www.albumoftheyear.org/*",
+        "https://www.allmusic.com/*",
+        "https://www.youtube.com/*"
+      ],
+      "js": ["sites.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

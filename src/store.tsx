@@ -72,6 +72,9 @@ interface AppState {
   checkingUpdate: boolean;
 
   activeDownloads: number;
+  /** Album the browser extension asked Flipside to get; the shell opens Auto-get for it. */
+  extensionAlbum: AlbumCard | null;
+  clearExtensionAlbum: () => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -89,6 +92,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const route = stack[stack.length - 1];
   const go = useCallback((next: Route) => setStack((s) => [...s.slice(-40), next]), []);
   const back = useCallback(() => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)), []);
+
+  const [extensionAlbum, setExtensionAlbum] = useState<AlbumCard | null>(null);
+  const clearExtensionAlbum = useCallback(() => setExtensionAlbum(null), []);
 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
@@ -213,6 +219,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const unlisten: Array<() => void> = [];
     const keep = (p: Promise<() => void>) => void p.then((fn) => unlisten.push(fn));
 
+    keep(events.flipsideExtensionGet.listen((e) => setExtensionAlbum({ ...e.payload })));
     keep(events.deemixDownloadProgress.listen((e) => applyProgress(e.payload)));
     keep(events.flipsideUsenetTransfers.listen((e) => setUsenet(e.payload)));
     keep(events.flipsideSoulseekTransfers.listen((e) => setSoulseek(e.payload)));
@@ -242,6 +249,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     route, canGoBack: stack.length > 1, go, back, toast, toasts, dismissToast,
     deemixJobs, startDeemix, clearDeemixJobs, usenet, setUsenet, soulseek, setSoulseek, connection,
     update, installProgress, checkForUpdate, installUpdate, checkingUpdate, activeDownloads,
+    extensionAlbum, clearExtensionAlbum,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
