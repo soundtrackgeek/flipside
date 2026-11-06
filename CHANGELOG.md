@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.11.1] - 2026-11-06
+
+### Fixed
+- **Find more** no longer stops by itself. When MusicBrainz (or another provider) throttled or failed for a moment, the whole run ended after a few quick errors, and the artists that failed were skipped until the next launch. It now waits out the outage, retries the round (up to 5 times, a minute apart) and only skips an artist when the next one succeeds. Stop still works at any time.
+
 ## [0.11.0] - 2026-11-06
 
 ### Added

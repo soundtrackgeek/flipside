@@ -558,14 +558,33 @@ pub fn start_refresh(continuous: bool) -> bool {
     STOP.store(false, Ordering::SeqCst);
     CONTINUOUS.store(continuous, Ordering::SeqCst);
     std::thread::spawn(move || {
+        let mut errors = 0;
         let message = loop {
             let result = crawl();
             rebuild_index();
             match result {
-                Ok(true) if continuous && !STOP.load(Ordering::SeqCst) => continue,
+                Ok(true) if continuous && !STOP.load(Ordering::SeqCst) => {
+                    errors = 0;
+                    continue;
+                }
                 Ok(_) if STOP.load(Ordering::SeqCst) => break "Stopped. Progress is saved; press Find more to continue.".to_owned(),
                 Ok(true) => break "Checked another batch.".to_owned(),
                 Ok(false) => break "Everything has been checked.".to_owned(),
+                // A provider outage must not end a continuous run: wait and try the round again,
+                // and only give up after several rounds in a row fail.
+                Err(error) if continuous && errors < 5 => {
+                    errors += 1;
+                    progress(
+                        "albums",
+                        0,
+                        0,
+                        format!("A provider is not responding ({error:#}). Retrying in a minute ({errors}/5)..."),
+                        true,
+                    );
+                    if !interruptible_sleep(Duration::from_secs(60)) {
+                        break "Stopped. Progress is saved; press Find more to continue.".to_owned();
+                    }
+                }
                 Err(error) => break format!("Discovery stopped: {error:#}"),
             }
         };
@@ -574,6 +593,18 @@ pub fn start_refresh(continuous: bool) -> bool {
         RUNNING.store(false, Ordering::SeqCst);
     });
     true
+}
+
+/// Sleeps in short slices so Stop stays responsive. Returns false when Stop was requested.
+fn interruptible_sleep(total: Duration) -> bool {
+    let end = std::time::Instant::now() + total;
+    while std::time::Instant::now() < end {
+        if STOP.load(Ordering::SeqCst) {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    !STOP.load(Ordering::SeqCst)
 }
 
 /// Asks a running crawl to stop after the artist it is on.
@@ -787,6 +818,9 @@ fn crawl() -> Result<bool> {
     let total = todo.len() as u32;
     work |= total > 0;
     let mut failures = 0;
+    // Artists that failed in a row. They are only skipped for the session once a later artist
+    // succeeds (a one-off bad artist); during an outage they stay eligible for the next round.
+    let mut pending_skips: Vec<String> = Vec::new();
     for (index, (key, name, known_mbid)) in todo.into_iter().enumerate() {
         if STOP.load(Ordering::SeqCst) {
             rebuild_index();
@@ -796,16 +830,25 @@ fn crawl() -> Result<bool> {
         match fetch_artist_albums(&conn, &lib, &key, &name, known_mbid) {
             Ok(()) => {
                 failures = 0;
+                if let Ok(mut list) = SKIPPED.lock() {
+                    list.append(&mut pending_skips);
+                }
+                pending_skips.clear();
                 artists_done += 1;
                 set_stats(|s| s.artists_done = artists_done);
             }
             Err(error) => {
-                if let Ok(mut list) = SKIPPED.lock() {
-                    list.push(key.clone());
-                }
+                pending_skips.push(key.clone());
                 failures += 1;
                 if failures >= 6 {
-                    return Err(error.context("MusicBrainz keeps failing, will retry later"));
+                    return Err(error.context("MusicBrainz keeps failing"));
+                }
+                // The shared HTTP gate opens a ~20s circuit breaker after repeated 429/503s, which
+                // makes every request fail instantly. Wait it out instead of burning through artists.
+                progress("albums", index as u32, total, "MusicBrainz is busy, waiting a moment...", true);
+                if !interruptible_sleep(Duration::from_secs(25)) {
+                    rebuild_index();
+                    return Ok(true);
                 }
             }
         }
