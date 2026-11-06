@@ -77,6 +77,8 @@ export default function Artist({ id }: { id: string }) {
   if (!detail) return <div className="skeleton" style={{ height: 320, borderRadius: 18 }} />;
 
   const { artist } = detail;
+  // Deezer fallback: only full albums, never singles or EPs.
+  const deezerAlbums = detail.albums.filter((a) => a.kind.toLowerCase() === "album");
   const similarNames = !extraDone
     ? []
     : (extra?.similar.length ? extra.similar : detail.related.map((r) => r.name))
@@ -122,10 +124,10 @@ export default function Artist({ id }: { id: string }) {
           <div className="grid">
             {albums.map((a) => <DiscTile key={a.id} album={a} showArtist={false} busy={resolving === a.id} onOpen={(x, auto) => void open(x, auto)} />)}
           </div>
-        ) : detail.albums.length > 0 ? (
+        ) : deezerAlbums.length > 0 ? (
           <>
-            <p className="page-sub" style={{ marginTop: -6 }}>No studio albums found in MusicBrainz, so these are the releases Deezer lists.</p>
-            <div className="grid">{detail.albums.map((a) => <AlbumTile key={a.id} album={a} showYear />)}</div>
+            <p className="page-sub" style={{ marginTop: -6 }}>No studio albums found in MusicBrainz, so these are the full albums Deezer lists (singles and EPs are left out).</p>
+            <div className="grid">{deezerAlbums.map((a) => <AlbumTile key={a.id} album={a} showYear />)}</div>
           </>
         ) : (
           <Empty>Nothing to show here. You may already own every album we know of by {artist.name}.</Empty>

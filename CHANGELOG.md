@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.10.3] - 2026-11-06
+
+### Fixed
+- Artist pages no longer list singles and EPs. When MusicBrainz has no studio albums for an artist, the Deezer fallback now shows full albums only.
+
 ## [0.10.2] - 2026-11-06
 
 ### Changed
