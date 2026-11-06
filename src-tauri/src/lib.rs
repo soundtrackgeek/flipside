@@ -143,8 +143,19 @@ async fn discovery_status() -> Result<discovery::DiscoveryStatus, String> {
 #[cfg(not(test))]
 #[tauri::command]
 #[specta::specta]
-async fn discovery_refresh() -> Result<bool, String> {
-    blocking(|| Ok(discovery::start_refresh())).await
+async fn discovery_refresh(continuous: bool) -> Result<bool, String> {
+    blocking(move || Ok(discovery::start_refresh(continuous))).await
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+#[specta::specta]
+async fn discovery_stop() -> Result<(), String> {
+    blocking(|| {
+        discovery::stop_refresh();
+        Ok(())
+    })
+    .await
 }
 
 #[cfg(not(test))]

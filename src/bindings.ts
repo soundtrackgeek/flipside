@@ -36,7 +36,8 @@ export const commands = {
 } | null>("catalog_resolve_artist", { name }),
 	discoveryQuery: (query: DiscoveryQuery) => __TAURI_INVOKE<DiscoveryPage>("discovery_query", { query }),
 	discoveryStatus: () => __TAURI_INVOKE<DiscoveryStatus>("discovery_status"),
-	discoveryRefresh: () => __TAURI_INVOKE<boolean>("discovery_refresh"),
+	discoveryRefresh: (continuous: boolean) => __TAURI_INVOKE<boolean>("discovery_refresh", { continuous }),
+	discoveryStop: () => __TAURI_INVOKE<null>("discovery_stop"),
 	libraryStatus: () => __TAURI_INVOKE<LibraryStatus>("library_status"),
 	libraryReload: () => __TAURI_INVOKE<LibraryStatus>("library_reload"),
 	getSettings: () => __TAURI_INVOKE<AppSettings>("get_settings"),
@@ -373,6 +374,17 @@ export type DiscoveryProgress = {
 	done: number,
 	total: number,
 	message: string,
+	/**
+	 * Your artists whose similar artists are known, out of all that are worth asking about.
+	 */
+	seedsDone: number,
+	seedsTotal: number,
+	/**
+	 * Similar artists whose albums have been looked up, out of all candidates found so far.
+	 */
+	artistsDone: number,
+	artistsTotal: number,
+	continuous: boolean,
 };
 
 /**  Serializes exactly as its payload. */

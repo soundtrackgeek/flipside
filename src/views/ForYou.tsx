@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Disc3, Loader2, RefreshCw, Search as SearchIcon, Sparkles, X } from "lucide-react";
+import { Disc3, Loader2, RefreshCw, Search as SearchIcon, Sparkles, Square, X } from "lucide-react";
 import { commands, events } from "../bindings";
 import type { DiscoveryAlbum, DiscoveryPage, DiscoveryQuery, DiscoveryStatus } from "../bindings";
 import { useApp } from "../store";
@@ -123,6 +123,15 @@ export default function ForYou() {
           <div className="name"><Sparkles size={14} style={{ verticalAlign: -2 }} /> {progress?.message}</div>
           <div className={`progress${pct == null ? " indeterminate" : ""}`}><i style={pct != null ? { width: `${pct}%` } : undefined} /></div>
           <div className="status-line">Finding similar artists and their albums in the background; new albums appear here as they are found.</div>
+          {progress?.continuous ? (
+            <div><button className="btn small" onClick={() => void commands.discoveryStop().catch((e) => toast("error", errorMessage(e)))}><Square size={12} /> Stop</button></div>
+          ) : null}
+        </div>
+      ) : null}
+      {progress && progress.seedsTotal > 0 ? (
+        <div className="status-line" style={{ margin: "0 0 14px" }}>
+          Your artists checked for similar artists: <b>{progress.seedsDone.toLocaleString()} / {progress.seedsTotal.toLocaleString()}</b>
+          {progress.artistsTotal > 0 ? <> · Similar artists explored: <b>{progress.artistsDone.toLocaleString()} / {progress.artistsTotal.toLocaleString()}</b></> : null}
         </div>
       ) : null}
 
@@ -156,7 +165,7 @@ export default function ForYou() {
           {filtered ? (
             <button className="btn small ghost" onClick={() => { setDecade(null); setGenre(null); setYearFrom(""); setYearTo(""); setText(""); }}><X size={13} /> Clear</button>
           ) : null}
-          <button className="btn small" style={{ marginLeft: "auto" }} disabled={running} onClick={() => void commands.discoveryRefresh().then((started) => toast("info", started ? "Looking for new similar artists…" : "Already running")).catch((e) => toast("error", errorMessage(e)))}>
+          <button className="btn small" style={{ marginLeft: "auto" }} disabled={running} onClick={() => void commands.discoveryRefresh(true).then((started) => toast("info", started ? "Searching until everything is checked. Press Stop to pause." : "Already running")).catch((e) => toast("error", errorMessage(e)))}>
             <RefreshCw size={13} className={running ? "spin" : ""} /> Find more
           </button>
         </div>

@@ -25,6 +25,19 @@ use crate::{catalog, keys, library};
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
 static RUNNING: AtomicBool = AtomicBool::new(false);
+static STOP: AtomicBool = AtomicBool::new(false);
+static CONTINUOUS: AtomicBool = AtomicBool::new(false);
+static STATS: Mutex<Stats> = Mutex::new(Stats { seeds_done: 0, seeds_total: 0, artists_done: 0, artists_total: 0 });
+/// Library artists Last.fm could not answer for in this session; not retried until the next launch.
+static SKIPPED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+#[derive(Clone, Copy)]
+struct Stats {
+    seeds_done: u32,
+    seeds_total: u32,
+    artists_done: u32,
+    artists_total: u32,
+}
 static INDEX: RwLock<Option<Arc<Index>>> = RwLock::new(None);
 static PROGRESS: Mutex<Option<DiscoveryProgress>> = Mutex::new(None);
 
@@ -50,6 +63,13 @@ pub struct DiscoveryProgress {
     pub done: u32,
     pub total: u32,
     pub message: String,
+    /// Your artists whose similar artists are known, out of all that are worth asking about.
+    pub seeds_done: u32,
+    pub seeds_total: u32,
+    /// Similar artists whose albums have been looked up, out of all candidates found so far.
+    pub artists_done: u32,
+    pub artists_total: u32,
+    pub continuous: bool,
 }
 
 #[derive(Clone, Debug, Serialize, specta::Type)]
@@ -435,8 +455,26 @@ fn age_days(timestamp: &str) -> i64 {
         .unwrap_or(i64::MAX)
 }
 
+fn set_stats(change: impl FnOnce(&mut Stats)) {
+    if let Ok(mut stats) = STATS.lock() {
+        change(&mut stats);
+    }
+}
+
 fn progress(stage: &str, done: u32, total: u32, message: impl Into<String>, running: bool) {
-    let p = DiscoveryProgress { running, stage: stage.to_owned(), done, total, message: message.into() };
+    let stats = STATS.lock().map(|s| *s).unwrap_or(Stats { seeds_done: 0, seeds_total: 0, artists_done: 0, artists_total: 0 });
+    let p = DiscoveryProgress {
+        running,
+        stage: stage.to_owned(),
+        done,
+        total,
+        message: message.into(),
+        seeds_done: stats.seeds_done,
+        seeds_total: stats.seeds_total,
+        artists_done: stats.artists_done,
+        artists_total: stats.artists_total,
+        continuous: running && CONTINUOUS.load(Ordering::SeqCst),
+    };
     if let Ok(mut slot) = PROGRESS.lock() {
         *slot = Some(p.clone());
     }
@@ -447,8 +485,53 @@ fn progress(stage: &str, done: u32, total: u32, message: impl Into<String>, runn
 
 pub fn status() -> DiscoveryStatus {
     let conn = flip().ok();
+    let mut current = PROGRESS.lock().ok().and_then(|p| p.clone()).unwrap_or_default();
+    if let Ok(stats) = STATS.lock() {
+        current.seeds_done = stats.seeds_done;
+        current.seeds_total = stats.seeds_total;
+        current.artists_done = stats.artists_done;
+        current.artists_total = stats.artists_total;
+    }
+    if current.seeds_total == 0 && !RUNNING.load(Ordering::SeqCst) {
+        if let (Some(lib), Some(conn)) = (library::loaded(), conn.as_ref()) {
+            let mut covered: HashSet<String> = HashSet::new();
+            if let Some(path) = library::paths().library {
+                if let Ok(src) = library::open_ro(&path) {
+                    if let Ok(mut stmt) = src.prepare("SELECT DISTINCT artist_key FROM lastfm_similar_artists") {
+                        if let Ok(rows) = stmt.query_map([], |r| r.get::<_, String>(0)) {
+                            covered.extend(rows.flatten().map(|k| loose_artist_key(&k)));
+                        }
+                    }
+                }
+            }
+            if let Ok(mut stmt) = conn.prepare("SELECT DISTINCT seed_key FROM disc_similar") {
+                if let Ok(rows) = stmt.query_map([], |r| r.get::<_, String>(0)) {
+                    covered.extend(rows.flatten());
+                }
+            }
+            let seeds = lib.artists.iter().filter(|(k, a)| a.albums >= 2 && k.as_str() != "various artists");
+            let (mut total, mut done) = (0u32, 0u32);
+            for (key, _) in seeds {
+                total += 1;
+                if covered.contains(key) {
+                    done += 1;
+                }
+            }
+            let count = |sql: &str| conn.query_row(sql, [], |r| r.get::<_, i64>(0)).unwrap_or(0) as u32;
+            set_stats(|s| {
+                s.seeds_total = total;
+                s.seeds_done = done;
+                s.artists_done = count("SELECT COUNT(*) FROM disc_artist WHERE fetched_at IS NOT NULL");
+                s.artists_total = count("SELECT COUNT(*) FROM disc_artist");
+            });
+            current.seeds_total = total;
+            current.seeds_done = done;
+            current.artists_done = STATS.lock().map(|s| s.artists_done).unwrap_or(0);
+            current.artists_total = STATS.lock().map(|s| s.artists_total).unwrap_or(0);
+        }
+    }
     DiscoveryStatus {
-        progress: PROGRESS.lock().ok().and_then(|p| p.clone()).unwrap_or_default(),
+        progress: current,
         library: library::status(),
         last_crawl: conn.as_ref().and_then(|c| meta(c, "last_crawl")),
         similar_artists: conn
@@ -464,21 +547,38 @@ pub fn status() -> DiscoveryStatus {
 // ---------------------------------------------------------------------------
 
 /// Starts the background crawl unless one is already running.
-pub fn start_refresh() -> bool {
+///
+/// `continuous` keeps going round after round (each round asks Last.fm about up to 150 more of your
+/// artists and looks up the albums of up to 300 new similar artists) until everything is checked or
+/// [`stop_refresh`] is called. Last.fm's rate limit is enforced by the HTTP layer.
+pub fn start_refresh(continuous: bool) -> bool {
     if RUNNING.swap(true, Ordering::SeqCst) {
         return false;
     }
-    std::thread::spawn(|| {
-        let result = crawl();
-        let message = match &result {
-            Ok(()) => "Discovery is up to date.".to_owned(),
-            Err(error) => format!("Discovery stopped: {error:#}"),
+    STOP.store(false, Ordering::SeqCst);
+    CONTINUOUS.store(continuous, Ordering::SeqCst);
+    std::thread::spawn(move || {
+        let message = loop {
+            let result = crawl();
+            rebuild_index();
+            match result {
+                Ok(true) if continuous && !STOP.load(Ordering::SeqCst) => continue,
+                Ok(_) if STOP.load(Ordering::SeqCst) => break "Stopped. Progress is saved; press Find more to continue.".to_owned(),
+                Ok(true) => break "Checked another batch.".to_owned(),
+                Ok(false) => break "Everything has been checked.".to_owned(),
+                Err(error) => break format!("Discovery stopped: {error:#}"),
+            }
         };
-        rebuild_index();
+        CONTINUOUS.store(false, Ordering::SeqCst);
         progress("done", 0, 0, message, false);
         RUNNING.store(false, Ordering::SeqCst);
     });
     true
+}
+
+/// Asks a running crawl to stop after the artist it is on.
+pub fn stop_refresh() {
+    STOP.store(true, Ordering::SeqCst);
 }
 
 /// Called at launch: refresh in the background when the data is a week old or missing.
@@ -489,7 +589,7 @@ pub fn refresh_if_stale() {
         .map(|t| age_days(&t) >= CRAWL_EVERY_DAYS)
         .unwrap_or(true);
     if stale && keys::get("lastfm_key").is_some() {
-        start_refresh();
+        start_refresh(false);
     }
 }
 
@@ -501,7 +601,8 @@ struct Candidate {
     because: Vec<(f64, String)>,
 }
 
-fn crawl() -> Result<()> {
+/// One pass. Returns whether it found anything left to do (false: everything is checked).
+fn crawl() -> Result<bool> {
     progress("library", 0, 0, "Reading your library...", true);
     let mut waited = 0;
     let lib = loop {
@@ -554,16 +655,33 @@ fn crawl() -> Result<()> {
         }
     }
 
+    let is_seed = |k: &String, a: &library::OwnedArtist| a.albums >= 2 && k != "various artists";
+    let seeds_total = lib.artists.iter().filter(|(k, a)| is_seed(k, a)).count() as u32;
+    let mut seeds_done = lib.artists.iter().filter(|(k, a)| is_seed(k, a) && covered.contains(*k)).count() as u32;
+    set_stats(|s| {
+        s.seeds_total = seeds_total;
+        s.seeds_done = seeds_done;
+    });
+    let mut work = false;
+
     // Seeds your cache doesn't cover yet: your biggest artists first.
     if keys::get("lastfm_key").is_some() {
+        let skipped: Vec<String> = SKIPPED.lock().map(|s| s.clone()).unwrap_or_default();
         let mut seeds: Vec<(&String, &library::OwnedArtist)> =
-            lib.artists.iter().filter(|(k, a)| a.albums >= 2 && !covered.contains(*k) && *k != "various artists").collect();
+            lib.artists.iter().filter(|(k, a)| is_seed(k, a) && !covered.contains(*k) && !skipped.contains(*k)).collect();
         seeds.sort_by(|a, b| b.1.albums.cmp(&a.1.albums).then_with(|| a.0.cmp(b.0)));
         seeds.truncate(LIVE_SEED_LIMIT);
         let total = seeds.len() as u32;
+        work |= total > 0;
         for (index, (key, artist)) in seeds.iter().enumerate() {
+            if STOP.load(Ordering::SeqCst) {
+                return Ok(true);
+            }
             progress("similar", index as u32, total, format!("Asking Last.fm about {}", artist.name), true);
             let Some(response) = catalog::lastfm_json("artist.getSimilar", &[("artist", artist.name.as_str()), ("limit", "30")]) else {
+                if let Ok(mut list) = SKIPPED.lock() {
+                    list.push((*key).clone());
+                }
                 continue;
             };
             let list = response.pointer("/similarartists/artist").and_then(Value::as_array).cloned().unwrap_or_default();
@@ -583,7 +701,16 @@ fn crawl() -> Result<()> {
                 )?;
                 edges.push(((*key).clone(), name, mbid, score));
             }
+            // Marks the artist as asked, even when Last.fm had no similar artists for it.
+            tx.execute(
+                "INSERT INTO disc_similar (seed_key, cand_key, cand_name, cand_mbid, score, fetched_at)
+                 VALUES (?1, '', '', NULL, 0, ?2)
+                 ON CONFLICT(seed_key, cand_key) DO UPDATE SET fetched_at = excluded.fetched_at",
+                params![key, now()],
+            )?;
             tx.commit()?;
+            seeds_done += 1;
+            set_stats(|s| s.seeds_done = seeds_done);
         }
     }
 
@@ -612,9 +739,19 @@ fn crawl() -> Result<()> {
             entry.mbid = mbid;
         }
     }
+    let pool = candidates.len() as u32;
     let mut ranked: Vec<Candidate> = candidates.into_values().collect();
     ranked.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.key.cmp(&b.key)));
-    ranked.truncate(MAX_CANDIDATES);
+    // Each pass looks at MAX_CANDIDATES more than the ones already explored.
+    let explored = conn
+        .query_row("SELECT COUNT(*) FROM disc_artist WHERE fetched_at IS NOT NULL", [], |r| r.get::<_, i64>(0))
+        .unwrap_or(0) as usize;
+    ranked.truncate(explored + MAX_CANDIDATES);
+    let mut artists_done = explored as u32;
+    set_stats(|s| {
+        s.artists_total = pool;
+        s.artists_done = artists_done;
+    });
     let top = ranked.first().map(|c| c.score).unwrap_or(1.0).max(f64::EPSILON);
     {
         let tx = conn.unchecked_transaction()?;
@@ -632,6 +769,8 @@ fn crawl() -> Result<()> {
     }
 
     // 3. Albums for each candidate, best candidates first.
+    let ranked_keys: HashSet<&str> = ranked.iter().map(|c| c.key.as_str()).collect();
+    let skipped: Vec<String> = SKIPPED.lock().map(|s| s.clone()).unwrap_or_default();
     let todo: Vec<(String, String, Option<String>)> = {
         let mut stmt = conn.prepare("SELECT cand_key, name, mbid, fetched_at FROM disc_artist ORDER BY score DESC")?;
         let rows = stmt.query_map([], |r| {
@@ -639,19 +778,31 @@ fn crawl() -> Result<()> {
         })?;
         rows.flatten()
             .filter(|(key, _, _, fetched)| {
-                ranked.iter().any(|c| &c.key == key)
+                ranked_keys.contains(key.as_str()) && !skipped.contains(key)
                     && fetched.as_deref().map(|t| age_days(t) >= ALBUMS_STALE_DAYS).unwrap_or(true)
             })
             .map(|(k, n, m, _)| (k, n, m))
             .collect()
     };
     let total = todo.len() as u32;
+    work |= total > 0;
     let mut failures = 0;
     for (index, (key, name, known_mbid)) in todo.into_iter().enumerate() {
+        if STOP.load(Ordering::SeqCst) {
+            rebuild_index();
+            return Ok(true);
+        }
         progress("albums", index as u32, total, format!("Finding albums by {name}"), true);
         match fetch_artist_albums(&conn, &lib, &key, &name, known_mbid) {
-            Ok(()) => failures = 0,
+            Ok(()) => {
+                failures = 0;
+                artists_done += 1;
+                set_stats(|s| s.artists_done = artists_done);
+            }
             Err(error) => {
+                if let Ok(mut list) = SKIPPED.lock() {
+                    list.push(key.clone());
+                }
                 failures += 1;
                 if failures >= 6 {
                     return Err(error.context("MusicBrainz keeps failing, will retry later"));
@@ -663,7 +814,7 @@ fn crawl() -> Result<()> {
         }
     }
     set_meta(&conn, "last_crawl", &now());
-    Ok(())
+    Ok(work)
 }
 
 fn fetch_artist_albums(

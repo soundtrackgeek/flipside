@@ -2,6 +2,15 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-11-06
+
+### Added
+- For you: **progress counters**: "Your artists checked for similar artists: 23,200 / 42,000" and "Similar artists explored: X / Y", shown at all times and updated live.
+- **Find more now keeps going**: it works through your artists round after round (Last.fm's rate limit is respected) until everything is checked, with a **Stop** button. Progress is saved, so stopping and starting again continues where it left off.
+
+### Fixed
+- Artists Last.fm had no similar artists for were asked about again on every pass; they are now marked as checked. Artists that fail are skipped for the rest of the session instead of being retried forever.
+
 ## [0.9.0] - 2026-11-05
 
 ### Added

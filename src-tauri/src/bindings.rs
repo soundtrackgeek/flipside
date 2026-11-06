@@ -17,7 +17,7 @@ use super::{
     delete_deemix_arl, test_deemix_connection, search_deemix_albums, download_deemix_album,
     preflight_deemix_album_download, get_app_update_status, check_app_update,
     install_app_update, catalog_resolve_album, catalog_cover, catalog_artist_albums, catalog_original_year,
-    catalog_resolve_artist, discovery_query, discovery_status, discovery_refresh,
+    catalog_resolve_artist, discovery_query, discovery_status, discovery_refresh, discovery_stop,
     library_status, library_reload, soulseek, usenet,
 };
 
@@ -44,6 +44,7 @@ fn builder() -> Builder<Wry> {
         discovery_query,
         discovery_status,
         discovery_refresh,
+        discovery_stop,
         library_status,
         library_reload,
         get_settings,
