@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.10.1] - 2026-11-06
+
+### Fixed
+- For you kept saying "Reading your library…" with an empty list when opened right after launch, even after the library had finished loading (it asked once and never again). It now checks every two seconds until the library is ready and then fills in the albums.
+
 ## [0.10.0] - 2026-11-06
 
 ### Added

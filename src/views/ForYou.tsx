@@ -97,6 +97,19 @@ export default function ForYou() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The library loads in the background after launch; keep asking until it is ready, then show the albums.
+  const libraryReady = !!status?.library.loaded;
+  useEffect(() => {
+    if (libraryReady) return;
+    const timer = window.setInterval(() => {
+      void commands.discoveryStatus().then((next) => {
+        setStatus((s) => (s && s.progress.running ? { ...next, progress: s.progress } : next));
+        if (next.library.loaded) void loadRef.current(true);
+      }).catch(() => undefined);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [libraryReady]);
+
   const progress = status?.progress;
   const running = !!progress?.running;
   const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : null;
