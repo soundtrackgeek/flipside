@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.10.2] - 2026-11-06
+
+### Changed
+- For you status lines are clearer and cover both sides: "Albums missing from artists you own" (computed locally, no crawl), "Finding new artists: X / Y of your artists asked" and "Albums found for new artists: X / Y artists looked up". Hover each for an explanation.
+
 ## [0.10.1] - 2026-11-06
 
 ### Fixed

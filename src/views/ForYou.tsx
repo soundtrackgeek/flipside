@@ -142,9 +142,18 @@ export default function ForYou() {
         </div>
       ) : null}
       {progress && progress.seedsTotal > 0 ? (
-        <div className="status-line" style={{ margin: "0 0 14px" }}>
-          Your artists checked for similar artists: <b>{progress.seedsDone.toLocaleString()} / {progress.seedsTotal.toLocaleString()}</b>
-          {progress.artistsTotal > 0 ? <> · Similar artists explored: <b>{progress.artistsDone.toLocaleString()} / {progress.artistsTotal.toLocaleString()}</b></> : null}
+        <div className="status-line" style={{ margin: "0 0 14px", display: "grid", gap: 3 }}>
+          <div title="Worked out from your Music Library and MusicBrainz data on this computer; no online lookups needed.">
+            Albums missing from artists you own: <b>{(page?.missingTotal ?? 0).toLocaleString()}</b>
+          </div>
+          <div title="Last.fm is asked which artists sound like each of yours; the answers are the new artists you don't own yet.">
+            Finding new artists: <b>{progress.seedsDone.toLocaleString()} / {progress.seedsTotal.toLocaleString()}</b> of your artists asked
+          </div>
+          {progress.artistsTotal > 0 ? (
+            <div title="Albums of the new artists are looked up on MusicBrainz (Discogs as a fallback).">
+              Albums found for new artists: <b>{progress.artistsDone.toLocaleString()} / {progress.artistsTotal.toLocaleString()}</b> artists looked up
+            </div>
+          ) : null}
         </div>
       ) : null}
 
