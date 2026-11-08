@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.12.1] - 2026-11-08
+
+### Fixed
+- **For you** could show "Nothing to show yet" with every count at 0 after launch. The page asked for albums the moment your library finished loading, but the album list was still being built, so it got an empty answer and never asked again. It now waits (showing "Reading your library…") until the list is ready.
+
 ## [0.12.0] - 2026-11-08
 
 ### Added

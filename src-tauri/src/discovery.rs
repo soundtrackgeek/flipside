@@ -261,6 +261,11 @@ fn index() -> Arc<Index> {
     INDEX.read().ok().and_then(|i| i.clone()).unwrap_or_default()
 }
 
+/// True once the album index has been built from the loaded library at least once.
+fn index_ready() -> bool {
+    INDEX.read().map(|i| i.is_some()).unwrap_or(false)
+}
+
 // ---------------------------------------------------------------------------
 // Query
 // ---------------------------------------------------------------------------
@@ -530,9 +535,13 @@ pub fn status() -> DiscoveryStatus {
             current.artists_total = STATS.lock().map(|s| s.artists_total).unwrap_or(0);
         }
     }
+    // The library thread sets "loaded" before it builds the album index, and a query in between finds
+    // nothing. Only report the library as loaded once the index exists, so the page waits for it.
+    let mut library = library::status();
+    library.loaded = library.loaded && index_ready();
     DiscoveryStatus {
         progress: current,
-        library: library::status(),
+        library,
         last_crawl: conn.as_ref().and_then(|c| meta(c, "last_crawl")),
         similar_artists: conn
             .as_ref()
