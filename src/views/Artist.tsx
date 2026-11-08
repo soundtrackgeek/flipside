@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { CircleStop, ExternalLink, Wand2 } from "lucide-react";
 import { commands } from "../bindings";
 import type { ArtistDetail, ArtistEnrichment, DiscoveryAlbum } from "../bindings";
 import { DiscTile, useAlbumOpener, useArtistOpener } from "../components/DiscTile";
@@ -7,6 +7,7 @@ import { AlbumTile, Empty, Section, SkeletonGrid } from "../components/ui";
 import { limited } from "../lib/limit";
 import { errorMessage, formatCount } from "../lib/format";
 import { usePageState } from "../lib/pageState";
+import { useApp, type Batch } from "../store";
 
 const SIMILAR_ARTISTS = 8;
 const ALBUMS_PER_SIMILAR = 12;
@@ -51,6 +52,78 @@ function SimilarRow({
   );
 }
 
+/** "Download all": auto-get every studio album in the list, after a second click to confirm. */
+function DownloadAllButton({ batchKey, albums }: { batchKey: string; albums: DiscoveryAlbum[] }) {
+  const { batch, autoGetAll } = useApp();
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    if (!confirming) return;
+    const t = window.setTimeout(() => setConfirming(false), 5000);
+    return () => window.clearTimeout(t);
+  }, [confirming]);
+
+  if (batch?.running) {
+    return batch.key === batchKey ? null : (
+      <button className="btn small" disabled title="Another Download all is still running">
+        <Wand2 size={14} /> Download all
+      </button>
+    );
+  }
+  if (confirming) {
+    return (
+      <>
+        <button className="btn small primary" onClick={() => { setConfirming(false); autoGetAll(batchKey, albums); }}>
+          <Wand2 size={14} /> Get all {albums.length} albums
+        </button>
+        <button className="btn small ghost" onClick={() => setConfirming(false)}>Cancel</button>
+      </>
+    );
+  }
+  return (
+    <button className="btn small" title="Auto-get every studio album: Deezer, then Usenet, then Soulseek" onClick={() => setConfirming(true)}>
+      <Wand2 size={14} /> Download all
+    </button>
+  );
+}
+
+/** Progress of this page's "Download all" batch, and a summary once it is finished. */
+function BatchLine({ batch }: { batch: Batch }) {
+  const { stopBatch, go } = useApp();
+  const total = batch.items.length;
+  const finished = batch.items.filter((x) => x.state === "done" || x.state === "failed").length;
+  const current = batch.items.find((x) => x.state === "running");
+  const count = (via: string) => batch.items.filter((x) => x.via === via).length;
+  const missed = batch.items.filter((x) => x.state === "failed");
+
+  if (batch.running) {
+    return (
+      <div className="batch-line">
+        <div className="progress"><i style={{ width: `${Math.round((finished / total) * 100)}%` }} /></div>
+        <span>
+          {batch.stopping ? "Stopping after this album... " : ""}
+          {finished + 1} of {total}{current ? `: ${current.title} (${current.detail})` : ""}
+        </span>
+        {!batch.stopping ? <button className="btn small ghost" onClick={stopBatch}><CircleStop size={14} /> Stop</button> : null}
+      </div>
+    );
+  }
+
+  const parts = [
+    count("deemix") ? `${count("deemix")} from Deezer` : "",
+    count("usenet") ? `${count("usenet")} queued on Usenet` : "",
+    count("soulseek") ? `${count("soulseek")} queued on Soulseek` : "",
+    count("owned") ? `${count("owned")} already downloaded` : "",
+    missed.length ? `${missed.length} not found (${missed.map((x) => x.title).join(", ")})` : "",
+  ].filter(Boolean);
+  return (
+    <div className="batch-line">
+      <span>{finished < total ? "Stopped" : "Finished"}: {parts.join(", ") || "nothing done"}.</span>
+      <button className="btn small ghost" onClick={() => go({ name: "downloads" })}>Open downloads</button>
+    </div>
+  );
+}
+
 export default function Artist({ id }: { id: string }) {
   const [detail, setDetail] = usePageState<ArtistDetail | null>("detail", null);
   const [extra, setExtra] = usePageState<ArtistEnrichment | null>("extra", null);
@@ -59,6 +132,8 @@ export default function Artist({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const { open, resolving, drawerNode } = useAlbumOpener();
   const openArtist = useArtistOpener();
+  const { batch } = useApp();
+  const batchKey = `artist:${id}`;
 
   useEffect(() => {
     if (detail && extraDone && albums) return; // remembered from an earlier visit
@@ -121,7 +196,12 @@ export default function Artist({ id }: { id: string }) {
         </div>
       ) : null}
 
-      <Section title={`Albums by ${artist.name}`} hint={albums && albums.length ? `${albums.length} studio albums` : undefined}>
+      <Section
+        title={`Albums by ${artist.name}`}
+        hint={albums && albums.length ? `${albums.length} studio albums` : undefined}
+        action={albums && albums.length ? <DownloadAllButton batchKey={batchKey} albums={albums} /> : undefined}
+      >
+        {batch?.key === batchKey ? <BatchLine batch={batch} /> : null}
         {albums === null ? (
           <SkeletonGrid count={6} />
         ) : albums.length > 0 ? (

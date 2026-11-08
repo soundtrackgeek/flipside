@@ -144,6 +144,9 @@ a { color: inherit; }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
 .section-head h2 { font-family: var(--display); font-size: 24px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
 .section-head span { color: var(--faint); font-size: 12px; }
+.section-tools { display: flex; align-items: center; gap: 12px; }
+.batch-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 14px; color: var(--muted); font-size: 13px; }
+.batch-line .progress { flex: 1 1 160px; max-width: 260px; margin: 0; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 22px 18px; }
 .rail { display: grid; grid-auto-flow: column; grid-auto-columns: 176px; gap: 18px; overflow-x: auto; padding-bottom: 14px; margin: 0 -28px; padding-left: 28px; padding-right: 28px; scroll-snap-type: x proximity; }
 .rail > * { scroll-snap-align: start; }

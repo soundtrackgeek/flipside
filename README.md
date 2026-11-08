@@ -14,6 +14,7 @@ and React.
 - **Search** albums, artists and tracks; open rich album and artist pages (track lists, discographies, related
   artists, bios, tags, backdrops).
 - **Auto-get** — one click: tries Deezer, then Usenet, then Soulseek, and stops at the first that delivers.
+- **Download all** — on an artist page, runs Auto-get on every studio album of that artist, one after another.
 - **Choose source** — or pick a provider by hand in the drawer:
   - **Deezer** — direct, tagged downloads through your Deezer account (MP3 128/320 or FLAC).
   - **Usenet** — Prowlarr finds NZBs; Flipside downloads, repairs (PAR2) and extracts them itself.

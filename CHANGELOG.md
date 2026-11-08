@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] - 2026-11-08
+
+### Added
+- **Download all** button on artist pages (next to "Albums by …"). After a second click to confirm, it runs Auto-get (Deezer, then Usenet, then Soulseek) on every studio album in the list, one album at a time. A progress line shows which album it is on and has a **Stop** button; when it is done it sums up what came from where and lists the albums nobody had. The batch keeps running if you leave the page.
+
 ## [0.12.1] - 2026-11-08
 
 ### Fixed

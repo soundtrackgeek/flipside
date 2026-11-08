@@ -122,12 +122,17 @@ export function ArtistTile({ artist }: { artist: ArtistCard }) {
   );
 }
 
-export function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+export function Section({ title, hint, action, children }: { title: string; hint?: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section className="section">
       <div className="section-head">
         <h2>{title}</h2>
-        {hint ? <span>{hint}</span> : null}
+        {hint || action ? (
+          <div className="section-tools">
+            {hint ? <span>{hint}</span> : null}
+            {action}
+          </div>
+        ) : null}
       </div>
       {children}
     </section>

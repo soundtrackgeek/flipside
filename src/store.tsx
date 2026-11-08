@@ -4,11 +4,13 @@ import type {
   AlbumCard,
   ConnectionSnapshot,
   DeemixAlbumDownloadProgress,
+  DiscoveryAlbum,
   TransferQueueSnapshot,
   UpdateSnapshot,
   UsenetTransferQueue,
 } from "./bindings";
 import { errorMessage } from "./lib/format";
+import { autoGet, resolveDiscovery, type StepId } from "./lib/autoGet";
 
 /* ------------------------------------------------------------------ routing */
 
@@ -47,6 +49,24 @@ export interface DeemixJob {
   destination?: string;
 }
 
+/* ------------------------------------------------- "Download all" batches */
+
+export interface BatchItem {
+  title: string;
+  state: "pending" | "running" | "done" | "failed";
+  /** Where it came from ("deemix", "usenet", "soulseek", "owned"), once done. */
+  via: StepId | "owned" | null;
+  detail: string;
+}
+
+export interface Batch {
+  /** What the batch is for, e.g. the artist name; pages use it to show their own batch. */
+  key: string;
+  items: BatchItem[];
+  running: boolean;
+  stopping: boolean;
+}
+
 interface AppState {
   route: Route;
   canGoBack: boolean;
@@ -72,6 +92,10 @@ interface AppState {
   checkingUpdate: boolean;
 
   activeDownloads: number;
+  /** One auto-get batch at a time: every album in the list, one after another. */
+  batch: Batch | null;
+  autoGetAll: (key: string, albums: DiscoveryAlbum[]) => void;
+  stopBatch: () => void;
   /** Album the browser extension asked Flipside to get; the shell opens Auto-get for it. */
   extensionAlbum: AlbumCard | null;
   clearExtensionAlbum: () => void;
@@ -177,6 +201,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [soulseek, setSoulseek] = useState<TransferQueueSnapshot | null>(null);
   const [connection, setConnection] = useState<ConnectionSnapshot | null>(null);
 
+  /* --- download-all batch --- */
+  const [batch, setBatch] = useState<Batch | null>(null);
+  const batchRunning = useRef(false);
+  const stopRequested = useRef(false);
+  const connectionRef = useRef(connection);
+  connectionRef.current = connection;
+
+  const autoGetAll = useCallback((key: string, albums: DiscoveryAlbum[]) => {
+    if (batchRunning.current || albums.length === 0) return;
+    batchRunning.current = true;
+    stopRequested.current = false;
+    setBatch({
+      key, running: true, stopping: false,
+      items: albums.map((a) => ({ title: a.title, state: "pending", via: null, detail: "Waiting" })),
+    });
+    const patch = (i: number, item: Partial<BatchItem>) =>
+      setBatch((b) => (b ? { ...b, items: b.items.map((x, j) => (j === i ? { ...x, ...item } : x)) } : b));
+
+    void (async () => {
+      let got = 0;
+      let missed = 0;
+      for (let i = 0; i < albums.length && !stopRequested.current; i++) {
+        patch(i, { state: "running", detail: "Looking it up..." });
+        try {
+          const card = await resolveDiscovery(albums[i]);
+          const out = await autoGet(
+            card,
+            { startDeemix, setUsenet, setSoulseek, connection: () => connectionRef.current },
+            (_id, state, detail) => state === "running" && patch(i, { detail }),
+          );
+          patch(i, { state: out.via ? "done" : "failed", via: out.via, detail: out.message });
+          if (out.via) got++; else missed++;
+        } catch (e) {
+          patch(i, { state: "failed", detail: errorMessage(e) });
+          missed++;
+        }
+      }
+      const stopped = stopRequested.current;
+      batchRunning.current = false;
+      setBatch((b) => (b ? { ...b, running: false, stopping: false } : b));
+      toast(
+        missed && !got ? "error" : "success",
+        `${stopped ? "Stopped" : "Done"}: ${got} of ${albums.length} albums downloaded or queued${missed ? `, ${missed} not found` : ""}.`,
+      );
+    })();
+  }, [startDeemix, toast]);
+
+  const stopBatch = useCallback(() => {
+    if (!batchRunning.current) return;
+    stopRequested.current = true;
+    setBatch((b) => (b ? { ...b, stopping: true } : b));
+  }, []);
+
   /* --- updates --- */
   const [update, setUpdate] = useState<UpdateSnapshot>({ checkedAt: null, info: null, error: null });
   const [installProgress, setInstallProgress] = useState<AppState["installProgress"]>(null);
@@ -249,6 +326,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     route, canGoBack: stack.length > 1, go, back, toast, toasts, dismissToast,
     deemixJobs, startDeemix, clearDeemixJobs, usenet, setUsenet, soulseek, setSoulseek, connection,
     update, installProgress, checkForUpdate, installUpdate, checkingUpdate, activeDownloads,
+    batch, autoGetAll, stopBatch,
     extensionAlbum, clearExtensionAlbum,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
