@@ -7,27 +7,34 @@ import { DiscTile, useAlbumOpener, useArtistOpener } from "../components/DiscTil
 import TagInput from "../components/TagInput";
 import { Empty } from "../components/ui";
 import { errorMessage } from "../lib/format";
+import { usePageHas, usePageState } from "../lib/pageState";
 
 const PAGE = 60;
+/** The backend returns at most this many albums per query. */
+const MAX_QUERY = 200;
 type Source = "all" | "missing" | "similar";
+/** reset: start over at the top; more: append the next page; refresh: reload, keeping as many albums as are shown. */
+type LoadMode = "reset" | "more" | "refresh";
 
 export default function ForYou() {
   const { toast, go } = useApp();
-  const [source, setSource] = useState<Source>("all");
-  const [decade, setDecade] = useState<number | null>(null);
-  const [genre, setGenre] = useState<string | null>(null);
-  const [yearFrom, setYearFrom] = useState("");
-  const [yearTo, setYearTo] = useState("");
-  const [text, setText] = useState("");
-  const [debounced, setDebounced] = useState("");
-  const [sort, setSort] = useState("affinity");
-  const [exclude, setExclude] = useState<string[]>([]);
-  const [excludeReady, setExcludeReady] = useState(false);
+  // Filters and loaded albums are remembered per page, so coming back to For you continues where you left off.
+  const restored = usePageHas("items");
+  const [source, setSource] = usePageState<Source>("source", "all");
+  const [decade, setDecade] = usePageState<number | null>("decade", null);
+  const [genre, setGenre] = usePageState<string | null>("genre", null);
+  const [yearFrom, setYearFrom] = usePageState("yearFrom", "");
+  const [yearTo, setYearTo] = usePageState("yearTo", "");
+  const [text, setText] = usePageState("text", "");
+  const [debounced, setDebounced] = usePageState("debounced", "");
+  const [sort, setSort] = usePageState("sort", "affinity");
+  const [exclude, setExclude] = usePageState<string[]>("exclude", []);
+  const [excludeReady, setExcludeReady] = usePageState("excludeReady", false);
 
-  const [page, setPage] = useState<DiscoveryPage | null>(null);
-  const [items, setItems] = useState<DiscoveryAlbum[]>([]);
+  const [page, setPage] = usePageState<DiscoveryPage | null>("page", null);
+  const [items, setItems] = usePageState<DiscoveryAlbum[]>("items", []);
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<DiscoveryStatus | null>(null);
+  const [status, setStatus] = usePageState<DiscoveryStatus | null>("status", null);
   const [error, setError] = useState<string | null>(null);
   const { open, resolving, drawerNode } = useAlbumOpener();
   const openArtist = useArtistOpener();
@@ -40,34 +47,57 @@ export default function ForYou() {
     yearFrom: yearFrom ? Number(yearFrom) : null, yearTo: yearTo ? Number(yearTo) : null,
   }), [source, decade, genre, debounced, sort, yearFrom, yearTo, exclude]);
 
-  const load = useCallback(async (reset: boolean) => {
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  const load = useCallback(async (mode: LoadMode) => {
     const mine = ++generation.current;
     setLoading(true);
     try {
-      const result = await commands.discoveryQuery(build(reset ? 0 : items.length));
+      let result: DiscoveryPage;
+      if (mode === "refresh") {
+        // Reload in chunks until we have as many albums as before, so the list (and scroll position) stays put.
+        const want = Math.max(PAGE, itemsRef.current.length);
+        const fresh: DiscoveryAlbum[] = [];
+        do {
+          result = await commands.discoveryQuery({ ...build(fresh.length), limit: Math.min(MAX_QUERY, want - fresh.length) });
+          if (mine !== generation.current) return;
+          fresh.push(...result.items);
+        } while (result.items.length > 0 && fresh.length < want && fresh.length < result.total);
+        result = { ...result, items: fresh };
+      } else {
+        result = await commands.discoveryQuery(build(mode === "reset" ? 0 : itemsRef.current.length));
+      }
       if (mine !== generation.current) return;
       setPage(result);
-      setItems((prev) => (reset ? result.items : [...prev, ...result.items]));
+      setItems((prev) => (mode === "more" ? [...prev, ...result.items] : result.items));
       setError(null);
     } catch (e) {
       if (mine === generation.current) setError(errorMessage(e));
     } finally {
       if (mine === generation.current) setLoading(false);
     }
-  }, [build, items.length]);
+  }, [build, setItems, setPage]);
   // The crawl listener below is registered once; it must always call the *latest* load (current filters).
   const loadRef = useRef(load);
   loadRef.current = load;
 
-  // Reload from the top whenever a filter changes.
+  // Reload from the top whenever a filter changes. Coming back to the page refreshes what was shown instead.
+  const filterKey = JSON.stringify([source, decade, genre, debounced, sort, yearFrom, yearTo, exclude]);
+  const shownFor = useRef(restored ? filterKey : null);
   useEffect(() => {
-    if (excludeReady) void load(true);
+    if (!excludeReady) return;
+    const same = shownFor.current === filterKey;
+    shownFor.current = filterKey;
+    void load(same ? "refresh" : "reset");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, decade, genre, debounced, sort, yearFrom, yearTo, exclude, excludeReady]);
 
   // Excluded genres are a standing preference: load them first, save changes.
   useEffect(() => {
+    if (excludeReady) return; // already loaded earlier this session; changes are saved as they are made
     void commands.getSettings().then((s) => setExclude(s.excludedGenres ?? [])).catch(() => undefined).finally(() => setExcludeReady(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const changeExclude = useCallback((next: string[]) => {
     setExclude(next);
@@ -75,7 +105,7 @@ export default function ForYou() {
     void commands.getSettings()
       .then((s) => commands.saveSettings({ ...s, excludedGenres: next }))
       .catch((e) => toast("error", errorMessage(e)));
-  }, [genre, toast]);
+  }, [genre, toast, setExclude, setGenre]);
 
   // Crawl status + live progress; refresh the grid as the crawl finds more albums.
   useEffect(() => {
@@ -87,10 +117,10 @@ export default function ForYou() {
       setStatus((s) => (s ? { ...s, progress: e.payload } : s));
       if (!e.payload.running) {
         void commands.discoveryStatus().then(setStatus).catch(() => undefined);
-        void loadRef.current(true);
+        void loadRef.current("refresh");
       } else if (e.payload.stage === "albums" && Date.now() - lastReload > 20_000) {
         lastReload = Date.now();
-        void loadRef.current(true);
+        void loadRef.current("refresh");
       }
     }).then((fn) => { if (cancelled) fn(); else off = fn; });
     return () => { cancelled = true; off?.(); };
@@ -104,7 +134,7 @@ export default function ForYou() {
     const timer = window.setInterval(() => {
       void commands.discoveryStatus().then((next) => {
         setStatus((s) => (s && s.progress.running ? { ...next, progress: s.progress } : next));
-        if (next.library.loaded) void loadRef.current(true);
+        if (next.library.loaded) void loadRef.current("refresh");
       }).catch(() => undefined);
     }, 2000);
     return () => window.clearInterval(timer);
@@ -228,7 +258,7 @@ export default function ForYou() {
 
       {page && items.length < page.total ? (
         <div style={{ textAlign: "center", marginTop: 26 }}>
-          <button className="btn" disabled={loading} onClick={() => void load(false)}>
+          <button className="btn" disabled={loading} onClick={() => void load("more")}>
             {loading ? <Loader2 size={15} className="spin" /> : null} Show more ({(page.total - items.length).toLocaleString()} left)
           </button>
         </div>

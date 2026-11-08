@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft, Compass, Download, Gem, Loader2, Search as SearchIcon, Settings as SettingsIcon, Sparkles, X } from "lucide-react";
 import { AppProvider, useApp, type Route } from "./store";
 import Home from "./views/Home";
@@ -9,6 +9,7 @@ import Downloads from "./views/Downloads";
 import ForYou from "./views/ForYou";
 import Settings from "./views/Settings";
 import GetDrawer from "./components/GetDrawer";
+import { PageKey, routeKey, savedScroll, saveScroll } from "./lib/pageState";
 
 function NavButton({ route, label, icon, active, badge }: { route: Route; label: string; icon: React.ReactNode; active: boolean; badge?: number }) {
   const { go } = useApp();
@@ -68,7 +69,42 @@ function Shell() {
     return () => window.removeEventListener("keydown", onKey);
   }, [back]);
 
-  useEffect(() => { scroller.current?.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }); }, [route]);
+  // Each page remembers its scroll position. Coming back restores it; the page may still be loading, so keep
+  // trying until the content is tall enough (or the user scrolls themselves).
+  const pageKey = routeKey(route);
+  const currentPage = useRef(pageKey);
+  const restoring = useRef(false);
+  useLayoutEffect(() => {
+    currentPage.current = pageKey;
+    const el = scroller.current;
+    if (!el) return;
+    const target = savedScroll(pageKey);
+    let frame = 0;
+    const started = performance.now();
+    const stop = () => {
+      restoring.current = false;
+      window.cancelAnimationFrame(frame);
+      el.removeEventListener("wheel", stop);
+      el.removeEventListener("pointerdown", stop);
+      el.removeEventListener("touchstart", stop);
+      window.removeEventListener("keydown", stop);
+    };
+    const attempt = () => {
+      el.scrollTop = target;
+      if (Math.abs(el.scrollTop - target) < 2 || performance.now() - started > 5000) stop();
+      else frame = window.requestAnimationFrame(attempt);
+    };
+    restoring.current = true;
+    el.addEventListener("wheel", stop, { passive: true });
+    el.addEventListener("pointerdown", stop);
+    el.addEventListener("touchstart", stop, { passive: true });
+    window.addEventListener("keydown", stop);
+    attempt();
+    return stop;
+  }, [pageKey]);
+  const onScroll = () => {
+    if (!restoring.current && scroller.current) saveScroll(currentPage.current, scroller.current.scrollTop);
+  };
 
   const conn = connection?.state;
   const connClass = conn === "online" ? "online" : conn === "error" ? "error" : conn === "connecting" || conn === "authenticating" || conn === "reconnecting" ? "busy" : "";
@@ -105,15 +141,19 @@ function Shell() {
           </form>
         </header>
         <UpdateBanner />
-        <div className="scroller" ref={scroller}>
-          {route.name === "home" && <Home />}
-          {route.name === "search" && <Search q={route.q} />}
-          {route.name === "genre" && <Genre id={route.id} title={route.title} />}
-          {route.name === "album" && <Album id={route.id} openGet={route.get} />}
-          {route.name === "artist" && <Artist id={route.id} />}
-          {route.name === "foryou" && <ForYou />}
-          {route.name === "downloads" && <Downloads />}
-          {route.name === "settings" && <Settings />}
+        <div className="scroller" ref={scroller} onScroll={onScroll}>
+          <PageKey.Provider value={pageKey}>
+            <Fragment key={pageKey}>
+              {route.name === "home" && <Home />}
+              {route.name === "search" && <Search q={route.q} />}
+              {route.name === "genre" && <Genre id={route.id} title={route.title} />}
+              {route.name === "album" && <Album id={route.id} openGet={route.get} />}
+              {route.name === "artist" && <Artist id={route.id} />}
+              {route.name === "foryou" && <ForYou />}
+              {route.name === "downloads" && <Downloads />}
+              {route.name === "settings" && <Settings />}
+            </Fragment>
+          </PageKey.Provider>
         </div>
       </div>
 

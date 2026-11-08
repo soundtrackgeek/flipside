@@ -4,21 +4,22 @@ import type { AlbumCard, SearchResults } from "../bindings";
 import { useApp } from "../store";
 import { AlbumTile, ArtistTile, Empty, Section, SkeletonGrid } from "../components/ui";
 import { errorMessage, formatDuration } from "../lib/format";
+import { usePageState } from "../lib/pageState";
 
 export function Search({ q }: { q: string }) {
   const { go } = useApp();
-  const [results, setResults] = useState<SearchResults | null>(null);
+  const [results, setResults] = usePageState<SearchResults | null>("results", null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (results) return; // remembered from an earlier visit
     let alive = true;
-    setResults(null);
-    setError(null);
     commands
       .catalogSearch(q)
       .then((r) => alive && setResults(r))
       .catch((e) => alive && setError(errorMessage(e)));
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
   return (
@@ -65,13 +66,14 @@ export function Search({ q }: { q: string }) {
 }
 
 export function Genre({ id, title }: { id: string; title: string }) {
-  const [albums, setAlbums] = useState<AlbumCard[] | null>(null);
+  const [albums, setAlbums] = usePageState<AlbumCard[] | null>("albums", null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
+    if (albums) return; // remembered from an earlier visit
     let alive = true;
-    setAlbums(null);
     commands.catalogGenre(id).then((a) => alive && setAlbums(a)).catch((e) => alive && setError(errorMessage(e)));
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
   return (
     <>

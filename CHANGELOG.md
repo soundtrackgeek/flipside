@@ -2,6 +2,14 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-11-08
+
+### Added
+- Every page remembers where you were. Go to another page and come back (sidebar or Back) and you get the same filters, the same loaded albums (including everything from **Show more**) and the same scroll position. On **For you** that means the source tab, decade, genre, years, text filter and sort are kept. It lasts until Flipside is closed.
+
+### Changed
+- **For you** keeps your place while **Find more** is running: the background refreshes now reload as many albums as you had loaded, instead of jumping back to the first 60.
+
 ## [0.11.1] - 2026-11-06
 
 ### Fixed

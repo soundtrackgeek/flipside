@@ -6,6 +6,7 @@ import { DiscTile, useAlbumOpener, useArtistOpener } from "../components/DiscTil
 import { AlbumTile, Empty, Section, SkeletonGrid } from "../components/ui";
 import { limited } from "../lib/limit";
 import { errorMessage, formatCount } from "../lib/format";
+import { usePageState } from "../lib/pageState";
 
 const SIMILAR_ARTISTS = 8;
 const ALBUMS_PER_SIMILAR = 12;
@@ -14,14 +15,16 @@ const ALBUMS_PER_SIMILAR = 12;
 function SimilarRow({
   name, busyId, onOpen, onArtist,
 }: { name: string; busyId: string | null; onOpen: (a: DiscoveryAlbum, auto?: boolean) => void; onArtist: (name: string) => void }) {
-  const [albums, setAlbums] = useState<DiscoveryAlbum[] | null>(null);
+  const [albums, setAlbums] = usePageState<DiscoveryAlbum[] | null>(`similar:${name}`, null);
 
   useEffect(() => {
+    if (albums) return; // remembered from an earlier visit
     let alive = true;
     void limited(() => commands.catalogArtistAlbums(name))
       .then((a) => alive && setAlbums(a))
       .catch(() => alive && setAlbums([]));
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name]);
 
   // Nothing worth showing (unknown artist, or you already own all of their albums).
@@ -49,17 +52,17 @@ function SimilarRow({
 }
 
 export default function Artist({ id }: { id: string }) {
-  const [detail, setDetail] = useState<ArtistDetail | null>(null);
-  const [extra, setExtra] = useState<ArtistEnrichment | null>(null);
-  const [extraDone, setExtraDone] = useState(false);
-  const [albums, setAlbums] = useState<DiscoveryAlbum[] | null>(null);
+  const [detail, setDetail] = usePageState<ArtistDetail | null>("detail", null);
+  const [extra, setExtra] = usePageState<ArtistEnrichment | null>("extra", null);
+  const [extraDone, setExtraDone] = usePageState("extraDone", false);
+  const [albums, setAlbums] = usePageState<DiscoveryAlbum[] | null>("albums", null);
   const [error, setError] = useState<string | null>(null);
   const { open, resolving, drawerNode } = useAlbumOpener();
   const openArtist = useArtistOpener();
 
   useEffect(() => {
+    if (detail && extraDone && albums) return; // remembered from an earlier visit
     let alive = true;
-    setDetail(null); setExtra(null); setExtraDone(false); setAlbums(null); setError(null);
     commands
       .catalogArtist(id)
       .then((d) => {
@@ -71,6 +74,7 @@ export default function Artist({ id }: { id: string }) {
       })
       .catch((e) => alive && setError(errorMessage(e)));
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   if (error) return <Empty>Couldn't load this artist: {error}</Empty>;

@@ -6,22 +6,21 @@ import { useApp } from "../store";
 import GetDrawer, { type Tab } from "../components/GetDrawer";
 import { Empty } from "../components/ui";
 import { errorMessage, formatCount, formatDuration, formatTotalDuration, kindLabel } from "../lib/format";
+import { usePageState } from "../lib/pageState";
 
 export default function Album({ id, openGet }: { id: string; openGet?: boolean }) {
   const { go } = useApp();
-  const [detail, setDetail] = useState<AlbumDetail | null>(null);
-  const [extra, setExtra] = useState<AlbumEnrichment | null>(null);
-  const [originalYear, setOriginalYear] = useState<number | null>(null);
+  const [detail, setDetail] = usePageState<AlbumDetail | null>("detail", null);
+  const [extra, setExtra] = usePageState<AlbumEnrichment | null>("extra", null);
+  const [originalYear, setOriginalYear] = usePageState<number | null>("originalYear", null);
   const [error, setError] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<{ tab: Tab; autoStart: boolean } | null>(openGet ? { tab: "auto", autoStart: false } : null);
 
+  useEffect(() => { if (openGet) setDrawer({ tab: "auto", autoStart: false }); }, [openGet]);
+
   useEffect(() => {
+    if (detail) return; // remembered from an earlier visit
     let alive = true;
-    setDetail(null);
-    setExtra(null);
-    setOriginalYear(null);
-    setError(null);
-    setDrawer(openGet ? { tab: "auto", autoStart: false } : null);
     commands
       .catalogAlbum(id)
       .then((d) => {
@@ -32,7 +31,8 @@ export default function Album({ id, openGet }: { id: string; openGet?: boolean }
       })
       .catch((e) => alive && setError(errorMessage(e)));
     return () => { alive = false; };
-  }, [id, openGet]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   if (error) return <Empty>Couldn't load this album: {error}</Empty>;
   if (!detail) return <div className="skeleton" style={{ height: 340, borderRadius: 18 }} />;
