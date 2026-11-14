@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.0] - 2026-11-14
+
+### Added
+- **For you** can filter by a single year. Pick a decade and a row of year chips (for example 1990 to 1999, each with its album count) appears under the decade chips; click one to show only that year, click it again to go back to the whole decade.
+
 ## [0.13.0] - 2026-11-08
 
 ### Added

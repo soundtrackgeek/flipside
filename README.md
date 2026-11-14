@@ -8,7 +8,7 @@ and React.
 
 - **Discover** — featured album, editor's picks, genres, the album chart and popular artists.
 - **For you** — studio albums you don't own: gaps in artists you collect, plus albums by similar artists you don't have
-  yet (Last.fm → MusicBrainz/Discogs). Filter by decade, year, genre or text, and exclude genres (`scores` hides
+  yet (Last.fm → MusicBrainz/Discogs). Filter by decade (then a single year within it), year range, genre or text, and exclude genres (`scores` hides
   film/TV/game music, like in Music Library; e.g. `scores, Soundtrack, Synthwave`). Uses your Music Library databases
   (read-only) to hide everything you already own; only studio albums are listed (no live, compilations, EPs, singles).
 - **Search** albums, artists and tracks; open rich album and artist pages (track lists, discographies, related

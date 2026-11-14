@@ -371,6 +371,8 @@ export type DiscoveryPage = {
 	total: number,
 	items: DiscoveryAlbum[],
 	decades: Facet[],
+	/**  Release years within the selected decade (empty when no decade is selected). */
+	years: Facet[],
 	genres: Facet[],
 	missingTotal: number,
 	similarTotal: number,
@@ -398,6 +400,8 @@ export type DiscoveryQuery = {
 	/**  "all", "missing" (artists you own) or "similar" (artists you don't). */
 	source?: string,
 	decade?: number | null,
+	/**  One exact release year (used together with, or instead of, the decade). */
+	year?: number | null,
 	yearFrom?: number | null,
 	yearTo?: number | null,
 	genre?: string | null,

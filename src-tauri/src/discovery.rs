@@ -88,6 +88,8 @@ pub struct DiscoveryQuery {
     /// "all", "missing" (artists you own) or "similar" (artists you don't).
     pub source: String,
     pub decade: Option<i32>,
+    /// One exact release year (used together with, or instead of, the decade).
+    pub year: Option<i32>,
     pub year_from: Option<i32>,
     pub year_to: Option<i32>,
     pub genre: Option<String>,
@@ -128,6 +130,8 @@ pub struct DiscoveryPage {
     pub total: u32,
     pub items: Vec<DiscoveryAlbum>,
     pub decades: Vec<Facet>,
+    /// Release years within the selected decade (empty when no decade is selected).
+    pub years: Vec<Facet>,
     pub genres: Vec<Facet>,
     pub missing_total: u32,
     pub similar_total: u32,
@@ -316,6 +320,11 @@ fn matches(
                 return false;
             }
         }
+        if let Some(wanted) = q.year {
+            if year != Some(wanted) {
+                return false;
+            }
+        }
         if let Some(from) = q.year_from {
             if !year.is_some_and(|y| y >= from) {
                 return false;
@@ -347,6 +356,7 @@ pub fn query(q: &DiscoveryQuery) -> DiscoveryPage {
     // Genre facets ignore the genre filter, decade facets ignore the year filters, so you can switch.
     let mut genre_counts: HashMap<String, (String, u32)> = HashMap::new();
     let mut decade_counts: HashMap<i32, u32> = HashMap::new();
+    let mut year_counts: HashMap<i32, u32> = HashMap::new();
     let (mut missing_total, mut similar_total) = (0_u32, 0_u32);
     let mut hits: Vec<&Item> = Vec::new();
 
@@ -365,6 +375,9 @@ pub fn query(q: &DiscoveryQuery) -> DiscoveryPage {
             if matches(item, q, false, true, &text, &excluded) {
                 if let Some(year) = item.view.year {
                     *decade_counts.entry(year / 10 * 10).or_default() += 1;
+                    if q.decade == Some(year / 10 * 10) {
+                        *year_counts.entry(year).or_default() += 1;
+                    }
                 }
             }
         }
@@ -426,8 +439,14 @@ pub fn query(q: &DiscoveryQuery) -> DiscoveryPage {
         .map(|(decade, count)| Facet { key: decade.to_string(), label: format!("{decade}s"), count })
         .collect();
     decades.sort_by(|a, b| a.key.cmp(&b.key));
+    let mut years: Vec<(i32, u32)> = year_counts.into_iter().collect();
+    years.sort_unstable();
+    let years = years
+        .into_iter()
+        .map(|(year, count)| Facet { key: year.to_string(), label: year.to_string(), count })
+        .collect();
 
-    DiscoveryPage { total, items, decades, genres, missing_total, similar_total }
+    DiscoveryPage { total, items, decades, years, genres, missing_total, similar_total }
 }
 
 // ---------------------------------------------------------------------------

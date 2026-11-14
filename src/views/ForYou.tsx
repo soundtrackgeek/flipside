@@ -22,6 +22,7 @@ export default function ForYou() {
   const restored = usePageHas("items");
   const [source, setSource] = usePageState<Source>("source", "all");
   const [decade, setDecade] = usePageState<number | null>("decade", null);
+  const [year, setYear] = usePageState<number | null>("year", null);
   const [genre, setGenre] = usePageState<string | null>("genre", null);
   const [yearFrom, setYearFrom] = usePageState("yearFrom", "");
   const [yearTo, setYearTo] = usePageState("yearTo", "");
@@ -43,9 +44,9 @@ export default function ForYou() {
   useEffect(() => { const t = window.setTimeout(() => setDebounced(text), 250); return () => window.clearTimeout(t); }, [text]);
 
   const build = useCallback((offset: number): DiscoveryQuery => ({
-    source, decade, genre, text: debounced, sort, offset, limit: PAGE, excludeGenres: exclude,
+    source, decade, year, genre, text: debounced, sort, offset, limit: PAGE, excludeGenres: exclude,
     yearFrom: yearFrom ? Number(yearFrom) : null, yearTo: yearTo ? Number(yearTo) : null,
-  }), [source, decade, genre, debounced, sort, yearFrom, yearTo, exclude]);
+  }), [source, decade, year, genre, debounced, sort, yearFrom, yearTo, exclude]);
 
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -83,7 +84,7 @@ export default function ForYou() {
   loadRef.current = load;
 
   // Reload from the top whenever a filter changes. Coming back to the page refreshes what was shown instead.
-  const filterKey = JSON.stringify([source, decade, genre, debounced, sort, yearFrom, yearTo, exclude]);
+  const filterKey = JSON.stringify([source, decade, year, genre, debounced, sort, yearFrom, yearTo, exclude]);
   const shownFor = useRef(restored ? filterKey : null);
   useEffect(() => {
     if (!excludeReady) return;
@@ -91,7 +92,7 @@ export default function ForYou() {
     shownFor.current = filterKey;
     void load(same ? "refresh" : "reset");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, decade, genre, debounced, sort, yearFrom, yearTo, exclude, excludeReady]);
+  }, [source, decade, year, genre, debounced, sort, yearFrom, yearTo, exclude, excludeReady]);
 
   // Excluded genres are a standing preference: load them first, save changes.
   useEffect(() => {
@@ -144,7 +145,7 @@ export default function ForYou() {
   const running = !!progress?.running;
   const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : null;
   const lib = status?.library;
-  const filtered = decade !== null || genre !== null || !!yearFrom || !!yearTo || !!debounced;
+  const filtered = decade !== null || year !== null || genre !== null || !!yearFrom || !!yearTo || !!debounced;
   const suggestions = ["scores", "Soundtrack", ...(page?.genres.map((g) => g.label) ?? [])];
 
   return (
@@ -204,8 +205,8 @@ export default function ForYou() {
             <SearchIcon size={14} />
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Filter by artist or title" spellCheck={false} aria-label="Filter" />
           </div>
-          <label className="mini">From <input inputMode="numeric" maxLength={4} value={yearFrom} onChange={(e) => { setYearFrom(e.target.value.replace(/\D/g, "")); setDecade(null); }} placeholder="year" /></label>
-          <label className="mini">To <input inputMode="numeric" maxLength={4} value={yearTo} onChange={(e) => { setYearTo(e.target.value.replace(/\D/g, "")); setDecade(null); }} placeholder="year" /></label>
+          <label className="mini">From <input inputMode="numeric" maxLength={4} value={yearFrom} onChange={(e) => { setYearFrom(e.target.value.replace(/\D/g, "")); setDecade(null); setYear(null); }} placeholder="year" /></label>
+          <label className="mini">To <input inputMode="numeric" maxLength={4} value={yearTo} onChange={(e) => { setYearTo(e.target.value.replace(/\D/g, "")); setDecade(null); setYear(null); }} placeholder="year" /></label>
           <label className="mini">Sort
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
               <option value="affinity">Best match</option>
@@ -215,7 +216,7 @@ export default function ForYou() {
             </select>
           </label>
           {filtered ? (
-            <button className="btn small ghost" onClick={() => { setDecade(null); setGenre(null); setYearFrom(""); setYearTo(""); setText(""); }}><X size={13} /> Clear</button>
+            <button className="btn small ghost" onClick={() => { setDecade(null); setYear(null); setGenre(null); setYearFrom(""); setYearTo(""); setText(""); }}><X size={13} /> Clear</button>
           ) : null}
           <button className="btn small" style={{ marginLeft: "auto" }} disabled={running} onClick={() => void commands.discoveryRefresh(true).then((started) => toast("info", started ? "Searching until everything is checked. Press Stop to pause." : "Already running")).catch((e) => toast("error", errorMessage(e)))}>
             <RefreshCw size={13} className={running ? "spin" : ""} /> Find more
@@ -228,8 +229,17 @@ export default function ForYou() {
         {page && page.decades.length > 0 ? (
           <div className="chips-row" aria-label="Decade">
             {page.decades.map((d) => (
-              <button key={d.key} className={`chip pick${decade === Number(d.key) ? " accent" : ""}`} onClick={() => { setDecade(decade === Number(d.key) ? null : Number(d.key)); setYearFrom(""); setYearTo(""); }}>
+              <button key={d.key} className={`chip pick${decade === Number(d.key) ? " accent" : ""}`} onClick={() => { setDecade(decade === Number(d.key) ? null : Number(d.key)); setYear(null); setYearFrom(""); setYearTo(""); }}>
                 {d.label} · {d.count.toLocaleString()}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {decade !== null && page && page.years.length > 0 ? (
+          <div className="chips-row" aria-label="Year">
+            {page.years.map((y) => (
+              <button key={y.key} className={`chip pick${year === Number(y.key) ? " accent" : ""}`} onClick={() => setYear(year === Number(y.key) ? null : Number(y.key))}>
+                {y.label} · {y.count.toLocaleString()}
               </button>
             ))}
           </div>
