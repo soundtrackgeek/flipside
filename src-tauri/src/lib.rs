@@ -15,6 +15,8 @@ mod keys;
 mod meta;
 mod library;
 mod soulseek;
+#[cfg(not(test))]
+mod tray;
 mod updater;
 mod usenet;
 mod wire_enums;
@@ -401,8 +403,10 @@ pub fn run() {
             app.manage(usenet::initialize(app.handle())?);
             start_update_loop(app.handle().clone());
             bridge::start(app.handle());
+            tray::create(app.handle())?;
             Ok(())
         })
+        .on_window_event(tray::on_window_event)
         .invoke_handler(bindings::invoke_handler())
         .run(tauri::generate_context!())
         .expect("failed to run Flipside");

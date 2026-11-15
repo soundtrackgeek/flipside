@@ -27,6 +27,8 @@ and React.
   results and scroll position are as you left them, for the rest of the session.
 - **Shared music** — in Settings, choose folders to share on Soulseek (many users only serve people who share).
 - **Downloads** page combining all three, with progress, pause/resume/cancel and *show in folder*.
+- **Close to tray** — the window's X button hides Flipside to the system tray so downloads keep running
+  (toggle in **Settings → Window**). Click the tray icon to reopen it; right-click it to **Quit**.
 - **Auto-update** — checks GitHub on launch and every 30 minutes (or on demand in Settings); accept the update
   and it downloads, installs and restarts on its own.
 

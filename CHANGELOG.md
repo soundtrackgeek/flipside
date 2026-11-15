@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.15.0] - 2026-11-15
+
+### Added
+- **Close to tray.** Flipside now has an icon in the system tray. With **Settings → Window → Close to tray** on (the default), the window's X button hides Flipside to the tray instead of quitting, so downloads and the browser extension keep working. Click the tray icon to bring the window back; right-click it for **Show Flipside** and **Quit**.
+
 ## [0.14.0] - 2026-11-14
 
 ### Added

@@ -26,6 +26,8 @@ pub struct AppSettings {
     pub hide_owned: bool,
     /// Genres hidden on the For you page. "scores" expands to Music Library's film/TV/game umbrella.
     pub excluded_genres: Vec<String>,
+    /// The window's X button hides Flipside to the system tray instead of quitting.
+    pub close_to_tray: bool,
 }
 
 impl Default for AppSettings {
@@ -41,6 +43,7 @@ impl Default for AppSettings {
             musicbrainz_overlay_path: String::new(),
             hide_owned: true,
             excluded_genres: Vec::new(),
+            close_to_tray: true,
         }
     }
 }

@@ -170,6 +170,8 @@ export type AppSettings = {
 	hideOwned?: boolean,
 	/**  Genres hidden on the For you page. "scores" expands to Music Library's film/TV/game umbrella. */
 	excludedGenres?: string[],
+	/**  The window's X button hides Flipside to the system tray instead of quitting. */
+	closeToTray?: boolean,
 };
 
 /**  Serializes exactly as its payload. */

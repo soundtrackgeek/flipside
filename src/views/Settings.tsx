@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
-import { Check, Copy, FolderOpen, KeyRound, Loader2, Newspaper, Puzzle, RefreshCw, Share2, Sparkles, Zap } from "lucide-react";
+import { AppWindow, Check, Copy, FolderOpen, KeyRound, Loader2, Newspaper, Puzzle, RefreshCw, Share2, Sparkles, Zap } from "lucide-react";
 import { commands } from "../bindings";
 import type {
   AppSettings, ConnectionBootstrap, ConnectionProfile, DeemixCredentialStatus, KeyStatus, UsenetBootstrap, UsenetProfile,
@@ -75,6 +75,19 @@ function UpdatesPanel({ settings, save }: { settings: AppSettings; save: (s: App
           Check automatically
         </label>
       </div>
+    </Panel>
+  );
+}
+
+/* ------------------------------------------------------------------- window */
+
+function WindowPanel({ settings, save }: { settings: AppSettings; save: (s: AppSettings) => Promise<void> }) {
+  return (
+    <Panel icon={<AppWindow size={18} />} title="Window" desc="Flipside always has an icon in the system tray. Click it to bring the window back; right-click it for Quit.">
+      <label className="switch">
+        <input type="checkbox" checked={settings.closeToTray ?? true} onChange={(e) => void save({ ...settings, closeToTray: e.target.checked })} />
+        Close to tray — the X button hides Flipside instead of quitting, so downloads keep running
+      </label>
     </Panel>
   );
 }
@@ -348,6 +361,7 @@ export default function Settings() {
       <h1 className="page-title">Settings</h1>
       <p className="page-sub">Providers, folders and updates. Secrets are kept in Windows Credential Manager.</p>
       {settings ? <UpdatesPanel settings={settings} save={save} /> : null}
+      {settings ? <WindowPanel settings={settings} save={save} /> : null}
       {settings ? <LibraryPanel settings={settings} save={save} /> : null}
       {settings ? <DeemixPanel settings={settings} save={save} /> : null}
       <UsenetPanel />
