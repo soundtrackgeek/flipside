@@ -463,6 +463,11 @@ pub fn resolve_artist(name: &str) -> Result<Option<ArtistCard>> {
 }
 
 /// Finds the Deezer album matching a MusicBrainz/Discogs release so it can be opened and downloaded.
+///
+/// Albums often share their title with their lead single, and Deezer's search tends to list the single
+/// first, so every title match is ranked rather than taking the first one: full albums beat EPs and
+/// compilations, more tracks beat fewer, and singles (or a non-album release with one or two tracks)
+/// are never returned. A miss makes Auto-get fall through to Usenet and Soulseek instead of saving a single.
 pub fn resolve_album(artist: &str, title: &str) -> Result<Option<AlbumCard>> {
     let wanted_artist = loose_artist_key(artist);
     let wanted_title = edition_title_key(title);
@@ -472,15 +477,37 @@ pub fn resolve_album(artist: &str, title: &str) -> Result<Option<AlbumCard>> {
     ];
     for query in queries {
         let value = deezer("/search/album", &[("q", query.as_str()), ("limit", "20")])?;
-        let found = items(Some(&value))
-            .iter()
-            .filter_map(|x| album_card(x, None))
-            .find(|a| loose_artist_key(&a.artist) == wanted_artist && edition_title_key(&a.title) == wanted_title);
+        let found = best_album_match(
+            items(Some(&value))
+                .iter()
+                .filter_map(|x| album_card(x, None))
+                .filter(|a| loose_artist_key(&a.artist) == wanted_artist && edition_title_key(&a.title) == wanted_title),
+        );
         if found.is_some() {
             return Ok(found);
         }
     }
     Ok(None)
+}
+
+/// Picks the most album-like card among title matches, or none when every match is a single.
+fn best_album_match(cards: impl Iterator<Item = AlbumCard>) -> Option<AlbumCard> {
+    fn rank(kind: &str) -> u8 {
+        match kind.to_ascii_lowercase().as_str() {
+            "album" => 3,
+            "ep" | "compile" => 2,
+            "" => 1,
+            _ => 0,
+        }
+    }
+    cards
+        .filter(|a| !a.kind.eq_ignore_ascii_case("single"))
+        // A genuine album can be one long track, so the track floor is only for EPs and untyped releases.
+        .filter(|a| rank(&a.kind) == 3 || a.track_count.is_none_or(|n| n >= 3))
+        .enumerate()
+        // Ties keep Deezer's order (earlier = more relevant), hence the reversed index.
+        .max_by_key(|(index, a)| (rank(&a.kind), a.track_count.unwrap_or(0), std::cmp::Reverse(*index)))
+        .map(|(_, a)| a)
 }
 
 fn lastfm(method: &str, params: &[(&str, &str)]) -> Option<Value> {
@@ -621,6 +648,32 @@ mod tests {
         assert_eq!(year_of("2019-04-05"), Some(2019));
         assert_eq!(year_of("0000-00-00"), None);
         assert_eq!(year_of(""), None);
+    }
+
+    fn card(id: &str, kind: &str, tracks: Option<u32>) -> AlbumCard {
+        AlbumCard {
+            id: id.into(), title: "Same Title".into(), artist: "Artist".into(), artist_id: None,
+            cover: String::new(), cover_large: String::new(), year: None, release_date: None,
+            kind: kind.into(), track_count: tracks, explicit: false,
+        }
+    }
+
+    #[test]
+    fn album_match_prefers_the_album_over_its_title_single() {
+        let pick = |cards: Vec<AlbumCard>| best_album_match(cards.into_iter()).map(|a| a.id);
+        // The single comes first in Deezer's results, but the album wins.
+        assert_eq!(pick(vec![card("s", "single", Some(1)), card("a", "album", Some(11))]), Some("a".into()));
+        // A deluxe album with more tracks beats the standard one; an EP loses to both.
+        assert_eq!(
+            pick(vec![card("ep", "ep", Some(5)), card("std", "album", Some(10)), card("dlx", "album", Some(16))]),
+            Some("dlx".into())
+        );
+        // Equal candidates keep Deezer's order.
+        assert_eq!(pick(vec![card("1", "album", Some(10)), card("2", "album", Some(10))]), Some("1".into()));
+        // Only singles or 1-2 track EPs: no match, so Auto-get moves on to Usenet/Soulseek.
+        assert_eq!(pick(vec![card("s", "single", Some(1)), card("x", "ep", Some(2))]), None);
+        // ...but a real one-track album is still an album.
+        assert_eq!(pick(vec![card("s", "single", Some(1)), card("d", "album", Some(1))]), Some("d".into()));
     }
 
     #[test]

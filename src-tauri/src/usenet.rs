@@ -155,6 +155,21 @@ pub struct UsenetDownloadRequest {
     pub release_group_id: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UsenetScreenRequest {
+    pub guid: String,
+    pub download_url: String,
+}
+
+/// Whether a release's NZB looks like real music, checked before it is queued.
+#[derive(Clone, Debug, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UsenetScreening {
+    pub ok: bool,
+    pub reason: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum UsenetTransferStatus {
@@ -451,6 +466,33 @@ impl UsenetManager {
         })
     }
 
+    /// Fetches a release's NZB and rejects it if it names a program. A release that passes keeps its
+    /// NZB in staging for the download to reuse.
+    fn screen(&self, request: UsenetScreenRequest) -> Result<UsenetScreening> {
+        let profile = self.profile()?;
+        let (api_key, _) = self.credentials(&profile)?;
+        let stage = release_stage_path(&profile.download_directory, &request.guid);
+        let xml = fetch_nzb(&profile, &api_key, &stage, &request.download_url)?;
+        let nzb: Nzb = from_str(&xml).context("Prowlarr returned an invalid NZB document")?;
+        if nzb.files.is_empty() {
+            return Ok(UsenetScreening {
+                ok: false,
+                reason: Some("The NZB does not contain any files.".into()),
+            });
+        }
+        let names = nzb.files.iter().map(NzbFile::suggested_filename).collect::<Vec<_>>();
+        if let Err(error) = screen_nzb_names(&names.iter().map(String::as_str).collect::<Vec<_>>()) {
+            let _ = fs::remove_dir_all(&stage);
+            return Ok(UsenetScreening {
+                ok: false,
+                reason: Some(error.to_string()),
+            });
+        }
+        fs::create_dir_all(&stage).context("Could not create the Usenet staging folder")?;
+        fs::write(stage.join(CACHED_NZB), xml).context("Could not keep the checked NZB")?;
+        Ok(UsenetScreening { ok: true, reason: None })
+    }
+
     fn snapshot(&self) -> UsenetTransferQueue {
         self.queue
             .lock()
@@ -595,10 +637,16 @@ impl UsenetManager {
             "Fetching NZB from Prowlarr",
             None,
         )?;
-        let nzb_xml = prowlarr_download(&profile, &api_key, &request.download_url)?;
+        let stage = release_stage_path(&profile.download_directory, &request.guid);
+        let nzb_xml = fetch_nzb(&profile, &api_key, &stage, &request.download_url)?;
         let nzb: Nzb = from_str(&nzb_xml).context("Prowlarr returned an invalid NZB document")?;
         if nzb.files.is_empty() {
             bail!("The NZB does not contain any files.");
+        }
+        let names = nzb.files.iter().map(NzbFile::suggested_filename).collect::<Vec<_>>();
+        if let Err(error) = screen_nzb_names(&names.iter().map(String::as_str).collect::<Vec<_>>()) {
+            let _ = fs::remove_dir_all(&stage);
+            return Err(error);
         }
         let total_bytes = nzb
             .files
@@ -624,7 +672,6 @@ impl UsenetManager {
             par2_recovery_blocks(&file.suggested_filename()).unwrap_or(u32::MAX)
         });
 
-        let stage = release_stage_path(&profile.download_directory, &request.guid);
         let files = stage.join("files");
         fs::create_dir_all(&files).context("Could not create the Usenet staging folder")?;
 
@@ -845,6 +892,12 @@ impl UsenetManager {
                 "Verifying and unpacking the RAR release",
                 None,
             )?;
+            let listed = rar_file_names(&extractor, &archive, &files)
+                .and_then(|names| screen_payload_names(&names.iter().map(String::as_str).collect::<Vec<_>>()));
+            if let Err(error) = listed {
+                let _ = fs::remove_dir_all(&stage);
+                return Err(error);
+            }
             let extracted = stage.join("extracted");
             if extracted.exists() {
                 fs::remove_dir_all(&extracted)
@@ -855,6 +908,7 @@ impl UsenetManager {
                 .arg("x")
                 .arg("-o+")
                 .arg("-y")
+                .arg("-p-")
                 .arg(&archive)
                 .arg(format!(
                     "{}{}",
@@ -882,6 +936,14 @@ impl UsenetManager {
             remove_par2_files(&files)?;
             files.clone()
         };
+
+        let payload_names = payload_file_names(&payload)?;
+        if let Err(error) =
+            screen_payload_names(&payload_names.iter().map(String::as_str).collect::<Vec<_>>())
+        {
+            let _ = fs::remove_dir_all(&stage);
+            return Err(error);
+        }
 
         let destination_parent = PathBuf::from(&profile.download_directory);
         fs::create_dir_all(&destination_parent)
@@ -1089,6 +1151,19 @@ pub async fn usenet_search(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn usenet_screen_release(
+    manager: State<'_, UsenetManager>,
+    request: UsenetScreenRequest,
+) -> Result<UsenetScreening, String> {
+    let manager = manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.screen(request))
+        .await
+        .map_err(|error| format!("Usenet screening task failed: {error}"))?
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn usenet_transfers_snapshot(
     manager: State<'_, UsenetManager>,
 ) -> Result<UsenetTransferQueue, String> {
@@ -1207,6 +1282,17 @@ fn prowlarr_download(profile: &UsenetProfile, api_key: &str, download_url: &str)
         .read_to_end(&mut bytes)
         .context("Could not read the NZB from Prowlarr")?;
     String::from_utf8(bytes).context("Prowlarr returned an NZB that is not UTF-8 XML")
+}
+
+/// The NZB a release screening already fetched is kept in the release's staging folder, so the
+/// download reuses it instead of grabbing it from the indexer a second time.
+const CACHED_NZB: &str = "release.nzb";
+
+fn fetch_nzb(profile: &UsenetProfile, api_key: &str, stage: &Path, download_url: &str) -> Result<String> {
+    if let Ok(xml) = fs::read_to_string(stage.join(CACHED_NZB)) {
+        return Ok(xml);
+    }
+    prowlarr_download(profile, api_key, download_url)
 }
 
 fn base_url(profile: &UsenetProfile) -> Result<Url> {
@@ -1972,6 +2058,119 @@ fn find_unrar() -> Option<PathBuf> {
         .flatten()
 }
 
+/// Programs, scripts and shortcuts. A music release never needs one, and fake releases use them to
+/// deliver malware, so any of these anywhere in a release rejects it.
+const BLOCKED_EXTENSIONS: &[&str] = &[
+    "exe", "com", "scr", "pif", "bat", "cmd", "msi", "msp", "msix", "appx", "dll", "cpl", "sys",
+    "vbs", "vbe", "js", "jse", "wsf", "wsh", "hta", "jar", "ps1", "psm1", "lnk", "reg", "apk",
+];
+const AUDIO_EXTENSIONS: &[&str] = &[
+    "flac", "mp3", "m4a", "aac", "ogg", "oga", "opus", "wav", "aiff", "aif", "ape", "wv", "alac", "dsf",
+    "dff", "wma", "mka", "tta", "mpc",
+];
+/// Archives Flipside cannot look inside; a payload made of these is let through as before.
+const OPAQUE_ARCHIVE_EXTENSIONS: &[&str] = &["zip", "7z"];
+
+fn extension_of(name: &str) -> String {
+    let leaf = name.rsplit(['/', '\\']).next().unwrap_or(name);
+    leaf.rsplit_once('.')
+        .map(|(_, extension)| extension.trim().to_ascii_lowercase())
+        .unwrap_or_default()
+}
+
+fn blocked_name<'a>(names: &[&'a str]) -> Option<&'a str> {
+    names
+        .iter()
+        .copied()
+        .find(|name| BLOCKED_EXTENSIONS.contains(&extension_of(name).as_str()))
+}
+
+/// Rejects an NZB whose file list already names a program, before anything is downloaded.
+fn screen_nzb_names(names: &[&str]) -> Result<()> {
+    if let Some(name) = blocked_name(names) {
+        bail!(
+            "Rejected as a likely fake: the release contains a program ({}), not music.",
+            compact_subject(name)
+        );
+    }
+    Ok(())
+}
+
+/// Rejects unpacked (or RAR-listed) release contents that hold a program or no audio at all.
+fn screen_payload_names(names: &[&str]) -> Result<()> {
+    if let Some(name) = blocked_name(names) {
+        bail!(
+            "Rejected as a likely fake: the release contains a program ({}), not music. It was deleted.",
+            compact_subject(name)
+        );
+    }
+    let has_music = names.iter().any(|name| {
+        let extension = extension_of(name);
+        AUDIO_EXTENSIONS.contains(&extension.as_str())
+            || OPAQUE_ARCHIVE_EXTENSIONS.contains(&extension.as_str())
+    });
+    if !has_music {
+        let mut found = names
+            .iter()
+            .map(|name| extension_of(name))
+            .filter(|extension| !extension.is_empty())
+            .collect::<Vec<_>>();
+        found.sort();
+        found.dedup();
+        bail!(
+            "Rejected as a likely fake: the release contains no audio files ({}). It was deleted.",
+            if found.is_empty() {
+                "it is empty".to_owned()
+            } else {
+                format!("found .{}", found.join(", ."))
+            }
+        );
+    }
+    Ok(())
+}
+
+/// Every file below `directory`, as paths relative to it.
+fn payload_file_names(directory: &Path) -> Result<Vec<String>> {
+    let mut names = Vec::new();
+    let mut pending = vec![directory.to_owned()];
+    while let Some(current) = pending.pop() {
+        for entry in fs::read_dir(&current).context("Could not inspect the downloaded release")? {
+            let entry = entry?;
+            let path = entry.path();
+            if entry.file_type()?.is_dir() {
+                pending.push(path);
+            } else {
+                let relative = path.strip_prefix(directory).unwrap_or(&path);
+                names.push(relative.to_string_lossy().into_owned());
+            }
+        }
+    }
+    Ok(names)
+}
+
+/// Lists a RAR's contents without unpacking it. `-p-` stops UnRAR asking for a password: an
+/// archive whose file list is encrypted cannot be listed, and that is a hallmark of a fake.
+fn rar_file_names(extractor: &Path, archive: &Path, directory: &Path) -> Result<Vec<String>> {
+    let output = Command::new(extractor)
+        .arg("lb")
+        .arg("-p-")
+        .arg(archive)
+        .current_dir(directory)
+        .output()
+        .with_context(|| format!("Could not start {}", extractor.display()))?;
+    if !output.status.success() {
+        bail!(
+            "Rejected as a likely fake: the RAR archive is password-protected or unreadable. It was deleted."
+        );
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect())
+}
+
 fn select_payload_root(extracted: &Path) -> Result<PathBuf> {
     let entries = fs::read_dir(extracted)
         .context("Could not inspect extracted Usenet files")?
@@ -2198,6 +2397,26 @@ mod tests {
             .map(|entry| entry.expect("directory entry").file_name())
             .collect::<Vec<_>>();
         assert_eq!(remaining, vec![std::ffi::OsString::from("payload.bin")]);
+    }
+
+    #[test]
+    fn screening_rejects_programs_and_audio_free_releases() {
+        // NZB level: a program anywhere in the file list is rejected before downloading.
+        assert!(screen_nzb_names(&["Artist - Album.part01.rar", "Artist - Album.par2"]).is_ok());
+        assert!(screen_nzb_names(&["7f3a9c2e1b"]).is_ok(), "obfuscated names pass to the later checks");
+        let fake = screen_nzb_names(&["Artist - Album.par2", "Artist - Album (FLAC).EXE"]).unwrap_err();
+        assert!(fake.to_string().contains("likely fake"));
+        assert!(screen_nzb_names(&["setup.flac.scr"]).is_err());
+
+        // Payload level: real music passes, with or without artwork and logs.
+        assert!(screen_payload_names(&["CD1\01 Intro.flac", "cover.jpg", "rip.log"]).is_ok());
+        assert!(screen_payload_names(&["Album.zip"]).is_ok(), "unopened archives are let through");
+        // A program next to the music still rejects the release.
+        assert!(screen_payload_names(&["01 Intro.mp3", "Codec Installer.exe"]).is_err());
+        // No audio at all: a video "album" or an empty folder.
+        let video = screen_payload_names(&["Album.wmv", "readme.txt"]).unwrap_err().to_string();
+        assert!(video.contains("no audio") && video.contains(".txt, .wmv"), "{video}");
+        assert!(screen_payload_names(&[]).is_err());
     }
 
     #[test]

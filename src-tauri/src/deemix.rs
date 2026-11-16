@@ -331,10 +331,16 @@ fn parse_album_matches(
             })
         })
         .collect::<Vec<_>>();
+    // An album and its title single score the same, so full albums with more tracks go first.
+    let is_album = |m: &DeemixAlbumMatch| {
+        m.record_type.as_deref().is_some_and(|kind| kind.eq_ignore_ascii_case("album"))
+    };
     matches.sort_by(|left, right| {
         right
             .match_score
             .cmp(&left.match_score)
+            .then_with(|| is_album(right).cmp(&is_album(left)))
+            .then_with(|| right.track_count.cmp(&left.track_count))
             .then_with(|| left.title.cmp(&right.title))
             .then_with(|| left.id.cmp(&right.id))
     });

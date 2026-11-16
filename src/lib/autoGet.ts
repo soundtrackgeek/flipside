@@ -80,6 +80,9 @@ async function pickSoulseek(album: AlbumCard): Promise<Candidate | null> {
 
 /* ---------------------------------------------------------------- Pipeline */
 
+/** How many confident Usenet matches Auto-get inspects before giving up on Usenet. */
+const USENET_CANDIDATES = 4;
+
 export type StepId = "deemix" | "usenet" | "soulseek";
 export type StepState = "pending" | "running" | "done" | "skipped" | "failed";
 
@@ -148,9 +151,28 @@ export async function autoGet(
   onStep("usenet", "running", "Searching Usenet...");
   try {
     const res = await commands.usenetSearch({ title: simplifyTitle(album.title), artist: album.artist, year: album.year, limit: 40 });
-    const best = [...res.results].sort((a, b) => b.matchScore - a.matchScore || (b.grabs ?? 0) - (a.grabs ?? 0))[0];
-    if (!best || best.matchScore < 60) {
-      onStep("usenet", "skipped", res.results.length ? "No confident match" : "No NZBs found");
+    const confident = [...res.results]
+      .sort((a, b) => b.matchScore - a.matchScore || (b.grabs ?? 0) - (a.grabs ?? 0))
+      .filter((r) => r.matchScore >= 60);
+    // Look inside each NZB before queueing it: fake releases ship a program instead of music.
+    let best: (typeof confident)[number] | undefined;
+    let rejected = 0;
+    for (const candidate of confident.slice(0, USENET_CANDIDATES)) {
+      onStep("usenet", "running", `Checking "${candidate.title}"...`);
+      try {
+        const check = await commands.usenetScreenRelease({ guid: candidate.guid, downloadUrl: candidate.downloadUrl });
+        if (check.ok) { best = candidate; break; }
+      } catch {
+        // An NZB the indexer won't hand over is no use either; try the next one.
+      }
+      rejected++;
+    }
+    if (!best) {
+      onStep(
+        "usenet", "skipped",
+        rejected ? `Skipped ${rejected} suspicious or unavailable ${rejected === 1 ? "release" : "releases"}`
+          : res.results.length ? "No confident match" : "No NZBs found",
+      );
     } else {
       deps.setUsenet(
         await commands.usenetEnqueueDownload({

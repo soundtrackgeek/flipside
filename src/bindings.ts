@@ -62,6 +62,7 @@ export const commands = {
 	usenetReset: () => __TAURI_INVOKE<UsenetBootstrap>("usenet_reset"),
 	usenetTestConnections: () => __TAURI_INVOKE<UsenetConnectionTest>("usenet_test_connections"),
 	usenetSearch: (request: UsenetSearchRequest) => __TAURI_INVOKE<UsenetSearchResponse>("usenet_search", { request }),
+	usenetScreenRelease: (request: UsenetScreenRequest) => __TAURI_INVOKE<UsenetScreening>("usenet_screen_release", { request }),
 	usenetTransfersSnapshot: () => __TAURI_INVOKE<UsenetTransferQueue>("usenet_transfers_snapshot"),
 	usenetEnqueueDownload: (request: UsenetDownloadRequest) => __TAURI_INVOKE<UsenetTransferQueue>("usenet_enqueue_download", { request }),
 	usenetClearCompleted: () => __TAURI_INVOKE<UsenetTransferQueue>("usenet_clear_completed"),
@@ -768,6 +769,17 @@ export type UsenetProfile = {
 	username: string,
 	downloadDirectory: string,
 	connections: number,
+};
+
+export type UsenetScreenRequest = {
+	guid: string,
+	downloadUrl: string,
+};
+
+/**  Whether a release's NZB looks like real music, checked before it is queued. */
+export type UsenetScreening = {
+	ok: boolean,
+	reason: string | null,
 };
 
 export type UsenetSearchRequest = {

@@ -69,6 +69,7 @@ fn builder() -> Builder<Wry> {
         usenet::usenet_reset,
         usenet::usenet_test_connections,
         usenet::usenet_search,
+        usenet::usenet_screen_release,
         usenet::usenet_transfers_snapshot,
         usenet::usenet_enqueue_download,
         usenet::usenet_clear_completed,

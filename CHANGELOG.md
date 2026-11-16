@@ -2,6 +2,15 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.16.0] - 2026-11-16
+
+### Added
+- **Fake Usenet releases are rejected.** Flipside now looks inside a release at three points and refuses it if it holds a program (`.exe`, `.scr`, `.bat`, `.msi`, `.lnk` and similar) or holds no audio at all: in the NZB's file list before anything is downloaded, in the RAR's file list before it is unpacked (an archive whose file list is password-protected is refused too), and in the unpacked files before they are moved into your Usenet folder. A rejected release is deleted from staging and its transfer fails with the reason.
+- **Auto-get checks Usenet releases before queueing one.** It inspects up to four confident matches in order and queues the first that passes, so a fake at the top of the results no longer wins. The NZB it checked is reused for the download, so the indexer counts only one grab.
+
+### Fixed
+- **Auto-get and Download all no longer download a single in place of the album.** When an album shares its title with its lead single, Deezer often lists the single first, and Flipside took the first title match. It now prefers full albums, then the version with the most tracks, and never picks a single (or an EP of one or two tracks). If Deezer only has the single, Auto-get moves on to Usenet and Soulseek.
+
 ## [0.15.0] - 2026-11-15
 
 ### Added

@@ -13,11 +13,13 @@ and React.
   (read-only) to hide everything you already own; only studio albums are listed (no live, compilations, EPs, singles).
 - **Search** albums, artists and tracks; open rich album and artist pages (track lists, discographies, related
   artists, bios, tags, backdrops).
-- **Auto-get** — one click: tries Deezer, then Usenet, then Soulseek, and stops at the first that delivers.
+- **Auto-get** — one click: tries Deezer, then Usenet, then Soulseek, and stops at the first that delivers. It never
+  takes a Deezer single in place of the album, and it checks a Usenet release's file list before queueing it.
 - **Download all** — on an artist page, runs Auto-get on every studio album of that artist, one after another.
 - **Choose source** — or pick a provider by hand in the drawer:
   - **Deezer** — direct, tagged downloads through your Deezer account (MP3 128/320 or FLAC).
-  - **Usenet** — Prowlarr finds NZBs; Flipside downloads, repairs (PAR2) and extracts them itself.
+  - **Usenet** — Prowlarr finds NZBs; Flipside downloads, repairs (PAR2) and extracts them itself. Fake releases
+    (ones that contain a program such as an `.exe`, a password-protected archive, or no audio) are rejected and deleted.
   - **Soulseek** — a native protocol client with live results; downloads whole release folders.
 - **Browser extension** — `extension/` holds an Edge/Chrome extension that, on Discogs, Rate Your Music, Album Of The
   Year, AllMusic and YouTube, shows whether the album on the page is available via Deezer, Usenet and Soulseek and
