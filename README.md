@@ -28,6 +28,10 @@ and React.
 - **Pages remember where you were** — leave a page and come back (sidebar or Back) and its filters, loaded
   results and scroll position are as you left them, for the rest of the session.
 - **Shared music** — in Settings, choose folders to share on Soulseek (many users only serve people who share).
+- **Activity log** — what you search for and download (with the service, and the Soulseek user) is written as one
+  JSON line per action to `%APPDATA%\com.soundtrackgeek.flipside\logs\activity.YYYY-MM-DD.jsonl`: events `search`,
+  `download_queued` and `download`, each with `ts`, `id` and `service` (`catalog`, `deezer`, `usenet`, `soulseek`).
+  It stays on this computer, is pruned after 90 days, and is what Watchme reads.
 - **Downloads** page combining all three, with progress, pause/resume/cancel and *show in folder*.
 - **Close to tray** — the window's X button hides Flipside to the system tray so downloads keep running
   (toggle in **Settings → Window**). Click the tray icon to reopen it; right-click it to **Quit**.

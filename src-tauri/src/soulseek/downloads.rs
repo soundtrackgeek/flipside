@@ -760,8 +760,11 @@ impl TransferHub {
     pub fn complete(&self, id: &str) -> Result<(), TransferError> {
         let mut found = false;
         self.mutate(|transfers| {
+            let mut finished = false;
             if let Some(transfer) = transfers.iter_mut().find(|transfer| transfer.id == id) {
                 found = true;
+                // A patched file completes a release that was already logged.
+                finished = transfer.patch_repair.is_none();
                 transfer.status = TransferStatus::Completed;
                 transfer.transferred_bytes = transfer.size_bytes;
                 transfer.speed_bytes_per_second = 0;
@@ -782,6 +785,12 @@ impl TransferHub {
                 if let Some(repair) = transfer.patch_repair.as_mut() {
                     repair.repaired_at_ms = Some(timestamp_ms());
                 }
+            }
+            if let Some(activity) = finished
+                .then(|| finished_download_activity(transfers, id))
+                .flatten()
+            {
+                crate::activity::record("download", activity);
             }
         })?;
         if !found {
@@ -1407,9 +1416,81 @@ pub enum TransferError {
     Json(#[from] serde_json::Error),
 }
 
+/// The activity-log line for a finished download, once the file `finished_id`
+/// completed: the whole release when that was its last file, or the file itself
+/// when it was queued on its own. `None` while the release still has files to go.
+fn finished_download_activity(
+    transfers: &[TransferSnapshot],
+    finished_id: &str,
+) -> Option<serde_json::Value> {
+    let finished = transfers.iter().find(|t| t.id == finished_id)?;
+    let Some(release_id) = finished.release_id.as_deref() else {
+        return Some(serde_json::json!({
+            "service": "soulseek",
+            "username": finished.username,
+            "title": finished.title,
+            "files": 1,
+            "bytes": finished.size_bytes,
+            "path": finished.local_path,
+        }));
+    };
+    let release: Vec<&TransferSnapshot> = transfers
+        .iter()
+        .filter(|t| t.release_id.as_deref() == Some(release_id))
+        .collect();
+    if release.iter().any(|t| t.status != TransferStatus::Completed) {
+        return None;
+    }
+    // Files can come from more than one person after a source switch; the one
+    // who sent the most is named first.
+    let mut users: Vec<(String, usize)> = Vec::new();
+    for t in &release {
+        match users.iter_mut().find(|(u, _)| u.eq_ignore_ascii_case(&t.username)) {
+            Some((_, count)) => *count += 1,
+            None => users.push((t.username.clone(), 1)),
+        }
+    }
+    users.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+    Some(serde_json::json!({
+        "service": "soulseek",
+        "releaseId": release_id,
+        "title": finished.release_title.as_deref().unwrap_or(&finished.title),
+        "username": users[0].0,
+        "users": users.iter().map(|(u, _)| u.as_str()).collect::<Vec<_>>(),
+        "files": release.len(),
+        "bytes": release.iter().map(|t| t.size_bytes).sum::<u64>(),
+        "path": finished.release_folder,
+        "albumId": finished.release_group_id,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn download_activity_is_logged_once_the_release_has_no_files_left() {
+        let mut transfers = vec![
+            release_transfer("a", "r1", "alice", "1.flac", TransferStatus::Completed, 1),
+            release_transfer("b", "r1", "bob", "2.flac", TransferStatus::Downloading, 2),
+            release_transfer("c", "r1", "alice", "3.flac", TransferStatus::Completed, 3),
+        ];
+        assert!(finished_download_activity(&transfers, "a").is_none());
+
+        transfers[1].status = TransferStatus::Completed;
+        let line = finished_download_activity(&transfers, "b").unwrap();
+        assert_eq!(line["releaseId"], "r1");
+        assert_eq!(line["files"], 3);
+        assert_eq!(line["bytes"], 300);
+        assert_eq!(line["username"], "alice");
+        assert_eq!(line["users"], serde_json::json!(["alice", "bob"]));
+
+        let mut single = release_transfer("s", "x", "carol", "song.mp3", TransferStatus::Completed, 1);
+        single.release_id = None;
+        let line = finished_download_activity(&[single], "s").unwrap();
+        assert_eq!(line["username"], "carol");
+        assert_eq!(line["files"], 1);
+    }
 
     fn release_transfer(
         id: &str,

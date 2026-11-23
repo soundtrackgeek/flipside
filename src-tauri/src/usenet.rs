@@ -973,6 +973,7 @@ impl UsenetManager {
             },
             Some(destination.to_string_lossy().into_owned()),
         )?;
+        crate::activity::record("download", usenet_activity(&request, Some(total_bytes), Some(&destination)));
         self.decrement_active();
         Ok(())
     }
@@ -1176,7 +1177,29 @@ pub async fn usenet_enqueue_download(
     manager: State<'_, UsenetManager>,
     request: UsenetDownloadRequest,
 ) -> Result<UsenetTransferQueue, String> {
-    manager.enqueue(request).map_err(|error| error.to_string())
+    let activity = usenet_activity(&request, None, None);
+    let queue = manager.enqueue(request).map_err(|error| error.to_string())?;
+    crate::activity::record("download_queued", activity);
+    Ok(queue)
+}
+
+/// An activity-log line for a Usenet release: the NZB, its indexer and the album it is for.
+fn usenet_activity(
+    request: &UsenetDownloadRequest,
+    bytes: Option<u64>,
+    destination: Option<&Path>,
+) -> serde_json::Value {
+    serde_json::json!({
+        "service": "usenet",
+        "title": request.title,
+        "indexer": request.indexer,
+        "artist": request.expected_artist,
+        "album": request.expected_album,
+        "year": request.expected_year,
+        "albumId": request.release_group_id,
+        "bytes": bytes.unwrap_or(request.size_bytes),
+        "path": destination.map(|path| path.to_string_lossy().into_owned()),
+    })
 }
 
 #[tauri::command]

@@ -2,6 +2,11 @@
 
 All notable changes to Flipside are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.17.0] - 2026-11-23
+
+### Added
+- **Activity log.** Flipside now keeps a plain record of what you do in `logs\activity.YYYY-MM-DD.jsonl` in its data folder, one JSON line each: store searches, Soulseek searches from the Get drawer, Soulseek releases and Usenet NZBs you queue, and every finished download with its service (Deezer, Usenet or Soulseek) and, for Soulseek, the users who sent it. Auto-get's own provider searches are not logged; the album it gets is. Nothing is uploaded; files older than 90 days are deleted. Local tools such as Watchme read it.
+
 ## [0.16.0] - 2026-11-16
 
 ### Added

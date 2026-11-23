@@ -192,9 +192,19 @@ pub async fn transfer_enqueue_release(
     manager: State<'_, ConnectionManager>,
     request: downloads::EnqueueReleaseRequest,
 ) -> Result<downloads::TransferQueueSnapshot, String> {
-    manager
+    let activity = serde_json::json!({
+        "service": "soulseek",
+        "username": request.username,
+        "title": request.title,
+        "folder": request.remote_folder,
+        "files": request.files.len(),
+        "bytes": request.files.iter().map(|file| file.size_bytes).sum::<u64>(),
+    });
+    let snapshot = manager
         .enqueue_release(request)
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    crate::activity::record("download_queued", activity);
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -309,9 +319,17 @@ pub async fn search_start(
     client_id: String,
     query: String,
 ) -> Result<SearchSnapshot, String> {
-    manager
+    // Auto-get searches by itself ("flip-auto-…"); its download is logged instead.
+    let automatic = client_id.starts_with("flip-auto-");
+    let activity =
+        (!automatic).then(|| serde_json::json!({ "service": "soulseek", "query": query }));
+    let snapshot = manager
         .start_search(client_id, query)
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    if let Some(activity) = activity {
+        crate::activity::record("search", activity);
+    }
+    Ok(snapshot)
 }
 
 #[tauri::command]

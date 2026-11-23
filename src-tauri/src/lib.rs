@@ -1,6 +1,7 @@
 //! Flipside: a visual store for music with Usenet, Deezer and Soulseek downloads.
 #![allow(dead_code, unused_imports)] // Provider modules are ported whole; not every API is surfaced in the UI yet.
 
+mod activity;
 mod bridge;
 mod catalog;
 mod covers;
@@ -58,6 +59,9 @@ async fn catalog_genre(id: String) -> Result<Vec<catalog::AlbumCard>, String> {
 #[tauri::command]
 #[specta::specta]
 async fn catalog_search(query: String) -> Result<catalog::SearchResults, String> {
+    // The Search page asks once per query you submit (and remembers the results), so this is
+    // what you searched for, not keystrokes.
+    activity::record("search", serde_json::json!({ "service": "catalog", "query": query }));
     blocking(move || catalog::search(&query)).await
 }
 
@@ -269,7 +273,22 @@ async fn download_deemix_album(
     app: AppHandle,
     input: deemix_download::DeemixAlbumDownloadRequest,
 ) -> Result<deemix_download::DeemixAlbumDownloadSummary, String> {
-    blocking(move || deemix_download::download_album_for_app(&app, input)).await
+    let summary = blocking(move || deemix_download::download_album_for_app(&app, input)).await?;
+    activity::record(
+        "download",
+        serde_json::json!({
+            "service": "deezer",
+            "albumId": summary.album_id,
+            "artist": summary.artist,
+            "album": summary.album,
+            "year": summary.year,
+            "title": format!("{} - {}", summary.artist, summary.album),
+            "quality": summary.quality,
+            "files": summary.track_count,
+            "path": summary.destination_path,
+        }),
+    );
+    Ok(summary)
 }
 
 #[cfg(not(test))]
@@ -389,6 +408,9 @@ pub fn run() {
             bindings::export_in_debug(
                 &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/bindings.ts"),
             );
+            if let Ok(config) = app.path().app_config_dir() {
+                activity::start(config.join("logs"));
+            }
             keys::seed_from_env();
             // Creates the database, then loads the library index and the discovery crawl in the background.
             db::open(app.handle())?;
